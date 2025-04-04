@@ -1,0 +1,2 @@
+# Dependencies of the project.
+scikit-learn==1.6.1
