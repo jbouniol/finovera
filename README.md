@@ -5,7 +5,7 @@ Grâce à un **AI-Agent**, l’utilisateur bénéficie de recommandations financ
 
 ---
 
-## ressources du projet
+## Ressources du projet
 
 Tu peux retrouver l'ensemble des datasets ici :
 📁 [Google Drive – Dossier Finovera](https://drive.google.com/drive/u/0/folders/1PNcL4oUCxw4gNcUsCxsghxd8MGpYGiTq)
