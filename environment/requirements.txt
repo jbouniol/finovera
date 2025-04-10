@@ -1,2 +1,22 @@
-# Dependencies of the project.
-scikit-learn==1.6.1
+# Core
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+
+# Data sources
+yfinance
+requests
+newsapi-python
+
+# NLP
+textblob
+vaderSentiment
+
+# Web app
+streamlit
+
+# Optional (pour visualisation avancée ou stockage)
+plotly
+joblib
