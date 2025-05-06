@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import joblib
-from notebooks.train_model import models, features  # réutilise les features du training
-from notebooks.tickers_metadata import tickers_metadata
+from train_model import models, features  # réutilise les features du training
+from tickers_metadata import tickers_metadata
 import matplotlib.pyplot as plt
 import pydeck as pdk
-from notebooks.ticker_enrichment import enrich_and_update_tickers
-from scripts.daily_update import daily_update
+from ticker_enrichment import enrich_and_update_tickers
+from daily_update import daily_update
 import traceback
 from PIL import Image
 
@@ -18,7 +18,7 @@ logo = Image.open("assets/logo.png")
 st.image(logo, width=500)
 
 if st.sidebar.button("🔁 Appliquer le thème sélectionné"):
-    st.experimental_rerun()
+    st.rerun()
 
 theme_choice = st.sidebar.selectbox("🎨 Thème", ["Dark", "Light"])
 if theme_choice == "Dark":
@@ -76,14 +76,14 @@ if page == "💡 Recommandations":
     countries = st.sidebar.multiselect(
         "Régions géographiques",
         options=list({entry["country"] for entry in tickers_metadata}),
-        default=["US", "France"]
+        default=["United States"]
     )
 
     # Secteurs
     sectors = st.sidebar.multiselect(
         "Secteurs d’intérêt",
         options=list({entry["sector"] for entry in tickers_metadata}),
-        default=["Technology", "Healthcare"]
+        default=["Technology"]
     )
 
     # Portefeuille utilisateur
@@ -99,6 +99,8 @@ if page == "💡 Recommandations":
 
     df = load_data()
 
+    
+
     def load_news():
         df_news = pd.read_csv("data/news_data.csv")
         df_news["date"] = pd.to_datetime(df_news["publishedAt"]).dt.date
@@ -107,6 +109,9 @@ if page == "💡 Recommandations":
     df_news = load_news()
 
     df_meta = pd.DataFrame(tickers_metadata)
+    df_meta = df_meta.rename(columns={"ticker": "Ticker"})
+    
+
     df = df.merge(df_meta, on="Ticker", how="left")
 
     tickers_base = df["Ticker"].unique().tolist()
@@ -156,7 +161,7 @@ if page == "💡 Recommandations":
     df_filtered["score"] = model.predict_proba(df_filtered[features])[:, 1]
 
     df_today = df_filtered[df_filtered["Date"] == df_filtered["Date"].max()]
-    top_recos = df_today.sort_values("score", ascending=False).head(5)
+    top_recos = df_today.sort_values("score", ascending=False).head(10)
     top_recos["SentimentLabel"] = top_recos["sentiment"].apply(sentiment_label)
 
     if user_tickers:
@@ -194,6 +199,7 @@ if page == "💡 Recommandations":
 
     def build_map(recos, meta):
         meta_df = pd.DataFrame(tickers_metadata)
+        meta_df = df_meta.rename(columns={"ticker": "Ticker"})
         joined = pd.merge(recos, meta_df, left_on="Ticker", right_on="Ticker", how="left")
         joined["country"] = joined["country_y"]
         joined.drop(columns=["country_x", "country_y"], inplace=True)
@@ -219,7 +225,7 @@ if page == "💡 Recommandations":
         ))
 
     st.subheader("✅ Recommandations d’achat aujourd’hui")
-    st.dataframe(top_recos[["Date", "Ticker", "name", "SentimentLabel", "score", "variation_pct"]])
+    st.dataframe(top_recos[["Date", "Ticker", "name", "country",  "SentimentLabel", "score"]])
 
     st.subheader("📰 Dernières actualités influentes")
     for ticker in top_recos["Ticker"].unique():

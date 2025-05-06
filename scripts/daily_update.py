@@ -8,7 +8,7 @@ import traceback
 import streamlit as st
 
 # === CONFIG ===
-NEWS_API_KEY = "YOUR_NEWS_API_KEY"
+NEWS_API_KEY = "e67a21b3ecc14ee395ea4256670b8af7"
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
 
@@ -119,11 +119,19 @@ def daily_update():
                     df_n["date"] = pd.to_datetime(df_n["date"])
                     new_news.append(df_n)
 
+                    # 1. Sentiment moyen par jour
                     df_sentiment = df_n.groupby("date")["sentiment"].mean().reset_index()
                     df_sentiment.rename(columns={"date": "Date"}, inplace=True)
                     df_sentiment["Ticker"] = ticker
 
-                    df_merged = pd.merge(df_sentiment, df_stock, on=["Date", "Ticker"], how="inner")
+                    # 2. Étendre les jours boursiers
+                    all_dates = df_stock["Date"].unique()
+                    df_sentiment = df_sentiment.set_index("Date").reindex(all_dates).fillna(0.0).reset_index()
+                    df_sentiment["Ticker"] = ticker
+
+                    # 3. Fusion complète
+                    df_merged = pd.merge(df_stock, df_sentiment, on=["Date", "Ticker"], how="left")
+
                 else:
                     df_merged = df_stock.copy()
                     df_merged["sentiment"] = 0

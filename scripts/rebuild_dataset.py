@@ -92,6 +92,18 @@ for ticker in tickers:
     df_final = df_final[["Date", "Ticker", "sentiment", "variation_pct", "Open", "Close", "High", "Low", "Volume"]]
     #df_final.dropna(subset=["sentiment", "variation_pct"], inplace=True)
 
+    # Imputation des valeurs manquantes de sentiment
+    sentiment_imputed = (
+    df_final.groupby("Ticker")["sentiment"]
+    .transform(lambda s: s.ffill().bfill())
+    )
+
+
+    sentiment_imputed = sentiment_imputed.fillna(0.0)
+
+    # Affecter proprement
+    df_final["sentiment"] = sentiment_imputed
+
     if len(df_final) < 30:
         print(f"⚠️ Moins de 30 jours valides pour {ticker} ({len(df_final)} lignes)")
         continue
