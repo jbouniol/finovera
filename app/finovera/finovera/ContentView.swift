@@ -24,10 +24,6 @@ struct ContentView: View {
                 .tabItem {
                     Label("Accueil", systemImage: "house.fill")
                 }
-            PortfolioView()
-                .tabItem {
-                    Label("Portefeuille", systemImage: "briefcase.fill")
-                }
         }
         .tint(Color("Accent"))           // accent vert-turquoise
         .background(Color("Background"))
