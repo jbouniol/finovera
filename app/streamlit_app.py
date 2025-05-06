@@ -1,12 +1,19 @@
+import sys
+import os
+
+# Ajoute le dossier parent (racine du repo) au PYTHONPATH
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
 import streamlit as st
 import pandas as pd
 import joblib
-from train_model import models, features  # réutilise les features du training
-from tickers_metadata import tickers_metadata
+from scripts.train_model import models, features  # réutilise les features du training
+from scripts.tickers_metadata import tickers_metadata
 import matplotlib.pyplot as plt
 import pydeck as pdk
-from ticker_enrichment import enrich_and_update_tickers
-from daily_update import daily_update
+from scripts.ticker_enrichment import enrich_and_update_tickers
+from scripts.daily_update import daily_update
 import traceback
 from PIL import Image
 
