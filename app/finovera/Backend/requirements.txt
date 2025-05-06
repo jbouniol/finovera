@@ -1,0 +1,14 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+pydantic==2.6.1
+requests==2.31.0
+beautifulsoup4==4.12.3
+python-dotenv==1.0.1
+pandas==2.2.0
+numpy==1.26.4
+yfinance==0.2.36
+newsapi-python==0.2.7
+vaderSentiment==3.3.2
+scikit-learn==1.4.0
+xgboost==2.0.3
+joblib==1.3.2 
