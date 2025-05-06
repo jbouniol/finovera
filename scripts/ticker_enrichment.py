@@ -6,8 +6,8 @@ import datetime
 import os
 import pandas as pd
 import joblib
-from train_model import models, features  # réutilise les features du training
-from tickers_metadata import tickers_metadata
+from scripts.train_model import models, features  # réutilise les features du training
+from scripts.tickers_metadata import tickers_metadata
 import matplotlib.pyplot as plt
 import pydeck as pdk
 import traceback
