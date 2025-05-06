@@ -19,11 +19,11 @@ let package = Package(
         .target(
             name: "finovera",
             dependencies: [],
-            path: "app/finovera",
+            path: "app/finovera/finovera",
             exclude: ["Info.plist", "Assets.xcassets", "Preview Content"]),
         .testTarget(
             name: "finoveraTests",
             dependencies: ["finovera"],
-            path: "app/finoveraTests"),
+            path: "app/finovera/finoveraTests"),
     ]
 ) 
