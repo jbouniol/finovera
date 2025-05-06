@@ -6,7 +6,7 @@ from notebooks.tickers_metadata import tickers_metadata
 import matplotlib.pyplot as plt
 import pydeck as pdk
 from notebooks.ticker_enrichment import enrich_and_update_tickers
-from notebooks.daily_update import daily_update
+from scripts.daily_update import daily_update
 import traceback
 from PIL import Image
 
