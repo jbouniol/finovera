@@ -6,8 +6,8 @@ import datetime
 import os
 import pandas as pd
 import joblib
-from notebooks.train_model import models, features  # réutilise les features du training
-from notebooks.tickers_metadata import tickers_metadata
+from train_model import models, features  # réutilise les features du training
+from tickers_metadata import tickers_metadata
 import matplotlib.pyplot as plt
 import pydeck as pdk
 import traceback
@@ -116,18 +116,63 @@ def enrich_and_update_tickers(tickers_to_add,
             df_sentiment.rename(columns={"date": "Date"}, inplace=True)
             df_sentiment["Ticker"] = ticker
 
+            # Étendre les sentiments à tous les jours présents dans le marché
+            dates_market = df_tidy["Date"].drop_duplicates().sort_values()
+            df_sentiment = df_sentiment.set_index("Date").reindex(dates_market)
+
+            # Impute les valeurs manquantes en utilisant une interpolation douce
+            df_sentiment["sentiment"] = (
+                df_sentiment["sentiment"]
+                .fillna(method="ffill")  # remplit en avant
+                .fillna(method="bfill")  # remplit en arrière si besoin
+            )
+
+            df_sentiment.reset_index(inplace=True)
+            df_sentiment.rename(columns={"index": "Date"}, inplace=True)
+            df_sentiment["Ticker"] = ticker
+
+
             # === 4. Merge avec données marché ===
             df_tidy = df_tidy.sort_values(by=["Ticker", "Date"])
             df_tidy["next_close"] = df_tidy.groupby("Ticker")["Close"].shift(-1)
             df_tidy["variation_pct"] = (df_tidy["next_close"] - df_tidy["Close"]) / df_tidy["Close"]
 
-            df_merged = pd.merge(df_sentiment, df_tidy, on=["Date", "Ticker"], how="inner")
+            df_merged = pd.merge(df_tidy, df_sentiment, on=["Date", "Ticker"], how="left")
             df_merged = df_merged[["Date", "Ticker", "sentiment", "variation_pct", "Open", "Close", "High", "Low", "Volume"]]
             df_merged.dropna(subset=["sentiment", "variation_pct"], inplace=True)
 
             if df_merged.empty:
                 st.warning(f"⚠️ Aucune ligne finale pour {ticker} après fusion.")
                 continue
+
+            # === 5. Enrichissement automatique des métadonnées ===
+            try:
+                info = yf.Ticker(ticker).info
+                country = info.get("country", "Unknown")
+                sector = info.get("sector", "Unknown")
+                name = info.get("shortName", "Unknown")
+                if country == "Unknown" :
+                    country = info.get("region", "Unknown")
+                if sector == "Unknown":
+                    sector = info.get("typeDisp", "Unknown")
+            except Exception:
+                country = "Unknown"
+                sector = "Unknown"
+
+            # Mise à jour locale du fichier tickers_metadata.py
+            meta_path = "tickers_metadata.py"
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                if ticker not in content:
+                    insertion = f'    {{ "ticker": "{ticker}", "name": "{name}", "country": "{country}", "sector": "{sector}" }},\n'
+                    content = content.replace("tickers_metadata = [", "tickers_metadata = [\n" + insertion)
+                    with open(meta_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    st.info(f"📌 Métadonnées ajoutées pour {ticker} : {country} / {sector}")
+            except Exception as e:
+                st.warning(f"⚠️ Impossible d’écrire dans tickers_metadata.py : {e}")
+
 
             all_final.append(df_merged)
 
