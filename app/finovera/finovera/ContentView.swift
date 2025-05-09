@@ -24,11 +24,6 @@ struct ContentView: View {
                 .tabItem {
                     Label("Accueil", systemImage: "house.fill")
                 }
-            
-            PortfolioView()
-                .tabItem {
-                    Label("Portfolio", systemImage: "chart.pie.fill")
-                }
         }
         .tint(Color("Accent"))           // accent vert-turquoise
         .background(Color("Background"))

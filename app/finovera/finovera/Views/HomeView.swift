@@ -43,7 +43,7 @@ struct HomeView: View {
             .background(Color("Background"))
             .overlay {
                 if vm.isLoading {
-                    LoadingView(message: "Finovera prépare une sélection d’actions grâce à l’IA…")
+                    LoadingView(message: "Finovera prépare une sélection d'actions grâce à l'IA…")
                 }
             }
 
@@ -81,6 +81,8 @@ struct HomeView: View {
             .sheet(isPresented: $showAddTicker) { AddTickerView() }
             .alert("Offline mode – mock data", isPresented: $vm.showOfflineAlert) {
                 Button("OK", role: .cancel) { }
+            } message: {
+                Text(vm.offlineMessage ?? "Les recommandations affichées sont simulées.")
             }
             .task { vm.load() }
             .onAppear {
