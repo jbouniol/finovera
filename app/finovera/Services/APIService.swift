@@ -1,8 +1,7 @@
 import Foundation
 
-class APIService {
-    // Remplacer par l'IP de votre Mac sur le réseau local
-    private let baseURL = "http://172.16.29.129:8000"  // À modifier avec votre IP
+class APIService {  
+    private let baseURL = "http://172.16.29.129:8000" 
     
     func fetchRecommendations(risk: String, capital: Double) async throws -> [Recommendation] {
         let urlString = "\(baseURL)/recommendations?risk=\(risk)&capital=\(capital)"

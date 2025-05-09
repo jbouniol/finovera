@@ -10,7 +10,7 @@ import Foundation
 enum NewsError: Error { case failed }
 
 struct NewsService {
-    private static let baseURL = URL(string: "http://127.0.0.1:8000")!
+    private static let baseURL = URL(string: "http://10.40.10.119:8000")! // IP de ton Mac
     
     static func fetchNews(for symbol: String) async throws -> [Article] {
         var components = URLComponents(url: baseURL.appendingPathComponent("news"),

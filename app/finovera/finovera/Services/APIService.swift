@@ -7,10 +7,20 @@
 
 import Foundation
 
-enum APIError: Error { case invalidURL, requestFailed, decodingFailed }
+enum APIError: Error { 
+    case invalidURL, requestFailed, decodingFailed 
+    
+    var localizedDescription: String {
+        switch self {
+        case .invalidURL: return "URL invalide"
+        case .requestFailed: return "Échec de la requête"
+        case .decodingFailed: return "Erreur de décodage"
+        }
+    }
+}
 
 struct APIService {
-    private static let baseURL = URL(string: "http://127.0.0.1:8000")!   // change si déployé
+    private static let baseURL = URL(string: "http://10.40.10.119:8000")! // IP de ton Mac
 
     static func fetchRecommendations(risk: String,
                                      regions: [String],
@@ -31,11 +41,32 @@ struct APIService {
         }
 
         guard let url = components.url else { throw APIError.invalidURL }
+        
+        print("[API] GET", url.absoluteString) // Log de l'URL complète
 
         let (data, response) = try await URLSession.shared.data(from: url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw APIError.requestFailed }
 
-        return try JSONDecoder().decode([Recommendation].self, from: data)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([Recommendation].self, from: data)
+    }
+    
+    static func fetchNews(for symbol: String) async throws -> [Article] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("news"),
+                                     resolvingAgainstBaseURL: false)!
+        components.queryItems = [.init(name: "symbol", value: symbol)]
+        
+        guard let url = components.url else { throw APIError.invalidURL }
+        
+        print("[API] GET", url.absoluteString) // Log de l'URL complète
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw APIError.requestFailed }
+        
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([Article].self, from: data)
     }
     
     static func addTicker(_ symbol: String) async throws {
@@ -43,8 +74,10 @@ struct APIService {
         req.httpMethod = "POST"
         req.httpBody   = try JSONEncoder().encode(["symbol": symbol])
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        _ = try await URLSession.shared.data(for: req)
+        
+        print("[API] POST", req.url?.absoluteString ?? "nil") // Log de l'URL complète
+        
+        let (_, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw APIError.requestFailed }
     }
-
-
 }
