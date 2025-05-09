@@ -206,12 +206,26 @@ def enrich_ticker(symbol: str) -> bool:
         print(f"❌ Erreur lors de l'enrichissement de {symbol}: {e}")
         return False
 
+def get_all_tickers_from_csv(regions: list, sectors: list):
+    df = pd.read_csv("data/final_dataset.csv")
+    df_meta = pd.read_csv("data/tickers_metadata.csv") if os.path.exists("data/tickers_metadata.csv") else None
+    if df_meta is not None:
+        df = df.merge(df_meta, left_on="Ticker", right_on="ticker", how="left")
+    else:
+        df["country"] = df["region"] if "region" in df.columns else "Unknown"
+        df["sector"] = df["sector"] if "sector" in df.columns else "Unknown"
+    tickers = df["Ticker"].unique().tolist()
+    if regions:
+        df = df[df["country"].isin(regions)]
+    if sectors:
+        df = df[df["sector"].isin(sectors)]
+    return df["Ticker"].unique().tolist()
+
 def generate_recommendations(risk: str, regions: List[str], sectors: List[str], capital: float) -> List[Recommendation]:
     """Génère des recommandations de portefeuille"""
     recommendations = []
     
-    # Liste des tickers à analyser
-    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
+    tickers = get_all_tickers_from_csv(regions, sectors)
     
     for symbol in tickers:
         try:
