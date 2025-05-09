@@ -42,33 +42,32 @@ final class RecommendationViewModel: ObservableObject {
     }
 
     // -------------- Networking --------------
-    func load() {
-        Task {
-            withAnimation { isLoading = true }
-            defer { withAnimation { isLoading = false } }
-
-            do {
-                recs = try await APIService.fetchRecommendations(
-                    risk: risk.rawValue,
-                    regions: regions.map(\.rawValue),
-                    sectors: sectors.map(\.rawValue),
-                    capital: capitalTarget
-                )
-            } catch {
-                recs = Recommendation.mock
-                showOfflineAlert = true
-            }
+    func loadRecommendations() async {
+        isLoading = true
+        do {
+            recs = try await APIService.fetchRecommendations(
+                risk: risk.rawValue,
+                regions: regions.map(\.rawValue),
+                sectors: sectors.map(\.rawValue),
+                capital: capitalTarget
+            )
+        } catch {
+            print("Erreur API: \(error.localizedDescription)")
+            // Utilise uniquement les mocks pour les recommandations
+            recs = Recommendation.mock
+            showOfflineAlert = true
         }
+        isLoading = false
     }
 
     // -------------- Mutators --------------
-    func updateCapitalTarget(_ value: Double) { capitalTarget = value ; load() }
-    func toggleRegion(_ r: InvestmentRegion)  { regions.toggle(r);   load() }
-    func toggleSector(_ s: Sector)            { sectors.toggle(s);  load() }
+    func updateCapitalTarget(_ value: Double) { capitalTarget = value ; loadRecommendations() }
+    func toggleRegion(_ r: InvestmentRegion)  { regions.toggle(r);   loadRecommendations() }
+    func toggleSector(_ s: Sector)            { sectors.toggle(s);  loadRecommendations() }
     func updateCapitalTarget(_ value: Double, completion: @escaping () -> Void) {
         capitalTarget = value
         Task {
-            await load()
+            await loadRecommendations()
             completion()
         }
     }
@@ -77,7 +76,7 @@ final class RecommendationViewModel: ObservableObject {
 }
 
 extension Set {
-    /// Inverse la présence d’un élément dans le Set
+    /// Inverse la présence d'un élément dans le Set
     mutating func toggle(_ element: Element) {
         if contains(element) {
             remove(element)

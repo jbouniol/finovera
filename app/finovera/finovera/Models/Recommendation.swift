@@ -12,6 +12,13 @@ struct Recommendation: Identifiable, Codable {
     let symbol: String
     let name: String
     let score: Double
-    let reason: String
+    let allocation: Double
+    let sector: String
+    let region: String
+    
+    // Pour rétrocompatibilité avec le code existant
+    var reason: String {
+        "Score: \(Int(score))/100 • Sector: \(sector) • Region: \(region)"
+    }
 }
 
