@@ -88,7 +88,7 @@ if page == "💡 Recommandations":
 
     # Secteurs
     sectors = st.sidebar.multiselect(
-        "Secteurs d’intérêt",
+        "Secteurs d'intérêt",
         options=list({entry["sector"] for entry in tickers_metadata}),
         default=["Technology"]
     )
@@ -141,7 +141,7 @@ if page == "💡 Recommandations":
     ]
 
     if df_filtered.empty:
-        st.warning("⚠️ Aucun résultat ne correspond à vos filtres. Essayez d’élargir votre sélection.")
+        st.warning("⚠️ Aucun résultat ne correspond à vos filtres. Essayez d'élargir votre sélection.")
         st.stop()
 
     def sentiment_label(score):
@@ -187,7 +187,7 @@ if page == "💡 Recommandations":
             st.subheader("📊 Recommandations sur votre portefeuille")
             st.dataframe(df_portfolio_today[["Ticker", "name", "sentiment", "score", "Action recommandée"]])
         else:
-            st.warning("⚠️ Aucun résultat trouvé pour vos tickers aujourd’hui.")
+            st.warning("⚠️ Aucun résultat trouvé pour vos tickers aujourd'hui.")
     else:
         st.info("Ajoutez vos tickers dans la sidebar pour voir les recommandations sur votre portefeuille.")
 
@@ -231,7 +231,7 @@ if page == "💡 Recommandations":
             ]
         ))
 
-    st.subheader("✅ Recommandations d’achat aujourd’hui")
+    st.subheader("✅ Recommandations d'achat aujourd'hui")
     st.dataframe(top_recos[["Date", "Ticker", "name", "country",  "SentimentLabel", "score"]])
 
     st.subheader("📰 Dernières actualités influentes")

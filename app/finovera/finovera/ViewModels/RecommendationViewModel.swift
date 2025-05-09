@@ -14,6 +14,8 @@ final class RecommendationViewModel: ObservableObject {
     @Published var recs: [Recommendation] = []
     @Published var isLoading = false          // ➜ popup de chargement
     @Published var showOfflineAlert = false
+    @Published var offlineMessage: String? = nil
+    private var hasShownOfflineAlert = false
 
     // -------------- Persisted choices --------------
     @AppStorage("capitalTarget")  var capitalTarget: Double = 80      // %
@@ -44,6 +46,7 @@ final class RecommendationViewModel: ObservableObject {
     // -------------- Networking --------------
     func loadRecommendations() async {
         isLoading = true
+        defer { isLoading = false }
         do {
             recs = try await APIService.fetchRecommendations(
                 risk: risk.rawValue,
@@ -51,13 +54,20 @@ final class RecommendationViewModel: ObservableObject {
                 sectors: sectors.map(\.rawValue),
                 capital: capitalTarget
             )
+            hasShownOfflineAlert = false // reset si succès
         } catch {
             print("Erreur API: \(error.localizedDescription)")
-            // Utilise uniquement les mocks pour les recommandations
             recs = Recommendation.mock
-            showOfflineAlert = true
+            if !hasShownOfflineAlert {
+                if let urlError = error as? URLError, urlError.code == .notConnectedToInternet {
+                    offlineMessage = "Mode hors-ligne : aucune connexion réseau détectée. Les recommandations affichées sont simulées."
+                } else {
+                    offlineMessage = "Mode hors-ligne : impossible de joindre le serveur. Les recommandations affichées sont simulées."
+                }
+                showOfflineAlert = true
+                hasShownOfflineAlert = true
+            }
         }
-        isLoading = false
     }
 
     // -------------- Mutators --------------
