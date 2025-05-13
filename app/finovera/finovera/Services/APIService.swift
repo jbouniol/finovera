@@ -21,14 +21,47 @@ enum APIError: Error {
 }
 
 struct APIService {
-    private static let baseURL = URL(string: "http://10.40.10.119:8000")! // Localhost pour le développement
+    // Configuration de l'URL selon l'environnement
+    #if DEBUG
+    // Adresse IP de votre Mac sur le réseau local (à modifier selon votre configuration)
+    // Cette adresse doit être accessible depuis votre iPhone sur le même réseau WiFi
+    private static let baseURL = URL(string: "http://192.168.1.10:8000")!
+    #else
+    // URL d'API de production
+    private static let baseURL = URL(string: "https://api.finovera.com")!
+    #endif
+    
+    // Pour personnaliser l'URL de l'API (utile pour les tests manuels)
+    static var customBaseURL: URL? = nil
+    
+    // URL effective à utiliser (priorité à l'URL personnalisée si définie)
+    private static var effectiveBaseURL: URL {
+        if let customURL = customBaseURL {
+            return customURL
+        }
+        return baseURL
+    }
+    
+    // Pour forcer l'utilisation de mocks en CI/CD ou tests
+    private static let useMocks = ProcessInfo.processInfo.environment["CI"] != nil
+    
+    // Pour permettre l'accès à l'URL de base en mode debug (utile pour l'affichage)
+    #if DEBUG
+    static var baseURLForDebug: URL {
+        return baseURL
+    }
+    #endif
 
     static func fetchRecommendations(risk: String,
                                      regions: [String],
                                      sectors: [String],
                                      capital: Double) async throws -> [Recommendation] {
+        // En environnement CI, retourner des données mockées
+        if useMocks {
+            return Recommendation.mock
+        }
 
-        var components = URLComponents(url: baseURL.appendingPathComponent("recommendations"),
+        var components = URLComponents(url: effectiveBaseURL.appendingPathComponent("recommendations"),
                                        resolvingAgainstBaseURL: false)!
         components.queryItems = [
             .init(name: "risk", value: risk),
@@ -54,7 +87,12 @@ struct APIService {
     }
     
     static func fetchNews(for symbol: String) async throws -> [Article] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("news"),
+        // En environnement CI, retourner des données mockées
+        if useMocks {
+            return Article.mock
+        }
+        
+        var components = URLComponents(url: effectiveBaseURL.appendingPathComponent("news"),
                                      resolvingAgainstBaseURL: false)!
         components.queryItems = [.init(name: "symbol", value: symbol)]
         
@@ -71,7 +109,12 @@ struct APIService {
     }
     
     static func addTicker(_ symbol: String) async throws {
-        var req = URLRequest(url: baseURL.appendingPathComponent("add_ticker"))
+        // En environnement CI, ne rien faire
+        if useMocks {
+            return
+        }
+        
+        var req = URLRequest(url: effectiveBaseURL.appendingPathComponent("add_ticker"))
         req.httpMethod = "POST"
         req.httpBody   = try JSONEncoder().encode(["symbol": symbol])
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -83,7 +126,15 @@ struct APIService {
     }
     
     static func fetchAvailableMetadata() async throws -> (regions: [String], sectors: [String]) {
-        let url = baseURL.appendingPathComponent("available_metadata")
+        // En environnement CI, retourner des données mockées
+        if useMocks {
+            return (
+                ["United States", "Europe", "Asia", "China", "Japan"],
+                ["Technology", "Healthcare", "Consumer Cyclical", "Financial Services"]
+            )
+        }
+        
+        let url = effectiveBaseURL.appendingPathComponent("available_metadata")
         
         print("[API] GET", url.absoluteString) // Log de l'URL complète
         
