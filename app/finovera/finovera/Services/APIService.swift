@@ -17,10 +17,11 @@ enum APIError: Error {
         case .decodingFailed: return "Erreur de décodage"
         }
     }
+    
 }
 
 struct APIService {
-    private static let baseURL = URL(string: "http://10.40.10.119:8000")! // IP de ton Mac
+    private static let baseURL = URL(string: "http://10.40.10.119:8000")! // Localhost pour le développement
 
     static func fetchRecommendations(risk: String,
                                      regions: [String],
@@ -31,7 +32,7 @@ struct APIService {
                                        resolvingAgainstBaseURL: false)!
         components.queryItems = [
             .init(name: "risk", value: risk),
-            .init(name: "capital", value: String(Int(capital)))
+            .init(name: "capital", value: String(Int(capital * 100))) // Conversion en entier représentant le pourcentage
         ]
         if !regions.isEmpty {
             components.queryItems?.append(.init(name: "regions", value: regions.joined(separator: ",")))
@@ -79,5 +80,25 @@ struct APIService {
         
         let (_, response) = try await URLSession.shared.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw APIError.requestFailed }
+    }
+    
+    static func fetchAvailableMetadata() async throws -> (regions: [String], sectors: [String]) {
+        let url = baseURL.appendingPathComponent("available_metadata")
+        
+        print("[API] GET", url.absoluteString) // Log de l'URL complète
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw APIError.requestFailed }
+        
+        struct MetadataResponse: Codable {
+            let regions: [String]
+            let sectors: [String]
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let metadataResponse = try decoder.decode(MetadataResponse.self, from: data)
+        
+        return (metadataResponse.regions, metadataResponse.sectors)
     }
 }

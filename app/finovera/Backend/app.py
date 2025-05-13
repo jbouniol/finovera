@@ -226,9 +226,26 @@ def generate_recommendations(risk: str, regions: List[str], sectors: List[str], 
     """Génère des recommandations de portefeuille"""
     recommendations = []
     
-    tickers = get_all_tickers_from_csv(regions, sectors)
+    # Gestion des paramètres de filtrage
+    # Si aucune région ou secteur n'est spécifié, utiliser tous ceux disponibles
+    if not regions and not sectors:
+        try:
+            tickers = get_all_tickers_from_csv([], [])
+        except Exception as e:
+            print(f"Erreur lors de la récupération des tickers: {e}")
+            # Fallback vers une liste de tickers populaires
+            tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
+    else:
+        try:
+            tickers = get_all_tickers_from_csv(regions, sectors)
+            if not tickers:
+                print("Aucun ticker trouvé avec les filtres spécifiés, utilisation des tickers populaires")
+                tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
+        except Exception as e:
+            print(f"Erreur lors de la récupération des tickers filtrés: {e}")
+            tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
     
-    for symbol in tickers:
+    for symbol in tickers[:20]:  # Limiter à 20 tickers pour des performances optimales
         try:
             # Récupération des données
             market_data = get_market_data(symbol)
@@ -262,12 +279,17 @@ def generate_recommendations(risk: str, regions: List[str], sectors: List[str], 
             info = get_ticker_info(symbol)
             
             # Calcul de l'allocation selon le risque
+            allocation_factor = 0.0
             if risk == "conservative":
-                allocation = capital * 0.1
+                allocation_factor = 0.05
             elif risk == "balanced":
-                allocation = capital * 0.15
+                allocation_factor = 0.08
             else:  # aggressive
-                allocation = capital * 0.2
+                allocation_factor = 0.12
+                
+            # Capital est un pourcentage, il faut l'ajuster
+            adjusted_capital = min(capital / 100.0, 1.0)
+            allocation = 10000 * allocation_factor * adjusted_capital * score
             
             recommendations.append(Recommendation(
                 symbol=symbol,
@@ -298,8 +320,8 @@ async def get_recommendations(
     sectors: Optional[str] = None,
     capital: float = 10000.0
 ):
-    region_list = regions.split(",") if regions else []
-    sector_list = sectors.split(",") if sectors else []
+    region_list = regions.split(",") if regions and regions.strip() else []
+    sector_list = sectors.split(",") if sectors and sectors.strip() else []
     
     recommendations = generate_recommendations(
         risk=risk,
@@ -316,6 +338,45 @@ async def add_ticker(request: TickerRequest):
     if not success:
         raise HTTPException(status_code=400, detail=f"Impossible d'ajouter le ticker {request.symbol}")
     return {"message": f"Ticker {request.symbol} ajouté avec succès"}
+
+@app.get("/tickers_metadata")
+async def get_tickers_metadata():
+    """Renvoie les métadonnées de tous les tickers"""
+    try:
+        from tickers_metadata import tickers_metadata
+        return tickers_metadata
+    except ImportError:
+        # Fallback: créer une liste basique
+        return [
+            {"ticker": "AAPL", "name": "Apple Inc.", "country": "United States", "sector": "Technology"},
+            {"ticker": "MSFT", "name": "Microsoft Corporation", "country": "United States", "sector": "Technology"},
+            {"ticker": "GOOGL", "name": "Alphabet Inc.", "country": "United States", "sector": "Communication Services"},
+            {"ticker": "AMZN", "name": "Amazon.com, Inc.", "country": "United States", "sector": "Consumer Cyclical"},
+            {"ticker": "META", "name": "Meta Platforms, Inc.", "country": "United States", "sector": "Communication Services"},
+            {"ticker": "TSLA", "name": "Tesla, Inc.", "country": "United States", "sector": "Consumer Cyclical"},
+            {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "country": "United States", "sector": "Financial Services"},
+            {"ticker": "JNJ", "name": "Johnson & Johnson", "country": "United States", "sector": "Healthcare"},
+            {"ticker": "V", "name": "Visa Inc.", "country": "United States", "sector": "Financial Services"},
+            {"ticker": "PG", "name": "Procter & Gamble Company", "country": "United States", "sector": "Consumer Defensive"}
+        ]
+
+@app.get("/available_metadata")
+async def get_available_metadata():
+    """Renvoie les secteurs et régions disponibles"""
+    try:
+        from tickers_metadata import tickers_metadata
+        countries = list(set(m["country"] for m in tickers_metadata))
+        sectors = list(set(m["sector"] for m in tickers_metadata))
+        return {
+            "regions": countries,
+            "sectors": sectors
+        }
+    except ImportError:
+        # Fallback: renvoyer des valeurs par défaut
+        return {
+            "regions": ["United States", "Europe", "Asia", "Other"],
+            "sectors": ["Technology", "Healthcare", "Consumer Cyclical", "Financial Services", "Communication Services", "Consumer Defensive", "Industrials", "Basic Materials", "Energy", "Utilities", "Real Estate"]
+        }
 
 if __name__ == "__main__":
     import uvicorn

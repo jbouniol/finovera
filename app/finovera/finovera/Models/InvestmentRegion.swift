@@ -6,40 +6,63 @@
 //
 
 import SwiftUI
+import Foundation
 
 enum InvestmentRegion: String, CaseIterable, Identifiable, Codable {
-    case us, canada, france, germany, italy, uk, japan, europe, world, asia
-
     var id: String { rawValue }
-
-    var title: String {
+    
+    // Pays majeurs
+    case unitedStates = "United States"
+    case china = "China"
+    case japan = "Japan"
+    case unitedKingdom = "United Kingdom"
+    case germany = "Germany"
+    case france = "France"
+    case canada = "Canada"
+    case australia = "Australia"
+    case switzerland = "Switzerland"
+    case brazil = "Brazil"
+    case india = "India"
+    case mexico = "Mexico"
+    case ireland = "Ireland"
+    case finland = "Finland"
+    case uruguay = "Uruguay"
+    
+    // Régions génériques
+    case europe = "Europe"
+    case asia = "Asia"
+    case latinAmerica = "Latin America"
+    case africa = "Africa"
+    case middleEast = "Middle East"
+    case other = "Other"
+    
+    // Fallback pour ETF
+    case us = "US"
+    
+    var flagEmoji: String {
         switch self {
-        case .us:      "United States"
-        case .canada:  "Canada"
-        case .france:  "France"
-        case .germany: "Germany"
-        case .italy:   "Italy"
-        case .uk:      "United Kingdom"
-        case .japan:   "Japan"
-        case .europe:  "Europe"
-        case .world:   "World"
-        case .asia:    "Asia-Pacific"
-        }
-    }
-
-    /// Flag emoji (fallback) – ou place des images SF si dispo
-    var flag: String {
-        switch self {
-        case .us:      "🇺🇸"
-        case .canada:  "🇨🇦"
-        case .france:  "🇫🇷"
-        case .germany: "🇩🇪"
-        case .italy:   "🇮🇹"
-        case .uk:      "🇬🇧"
-        case .japan:   "🇯🇵"
-        case .europe:  "🇪🇺"
-        case .world:   "🌐"
-        case .asia:    "🌏"
+        case .unitedStates: return "🇺🇸"
+        case .china: return "🇨🇳"
+        case .japan: return "🇯🇵"
+        case .unitedKingdom: return "🇬🇧"
+        case .germany: return "🇩🇪"
+        case .france: return "🇫🇷"
+        case .canada: return "🇨🇦"
+        case .australia: return "🇦🇺"
+        case .switzerland: return "🇨🇭"
+        case .brazil: return "🇧🇷"
+        case .india: return "🇮🇳"
+        case .mexico: return "🇲🇽"
+        case .ireland: return "🇮🇪"
+        case .finland: return "🇫🇮"
+        case .uruguay: return "🇺🇾"
+        case .europe: return "🇪🇺"
+        case .asia: return "🌏"
+        case .latinAmerica: return "🌎"
+        case .africa: return "🌍"
+        case .middleEast: return "🌍"
+        case .us: return "🇺🇸"
+        case .other: return "🌐"
         }
     }
 }

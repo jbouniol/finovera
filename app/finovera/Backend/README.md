@@ -1,51 +1,67 @@
 # Finovera Backend API
 
-API backend pour l'application Finovera iOS, fournissant des recommandations de portefeuille et des actualités financières.
+Ce backend fournit les données et les recommandations pour l'application iOS Finovera.
 
 ## Installation
 
-1. Créez un environnement virtuel Python :
-```bash
-python -m venv venv
-source venv/bin/activate  # Sur Unix/MacOS
-# ou
-.\venv\Scripts\activate  # Sur Windows
+1. Vérifiez que vous avez Python 3.8+ installé:
+   ```
+   python --version
+   ```
+
+2. Installez les dépendances:
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. Initialisez les modèles:
+   ```
+   python init_model.py
+   ```
+
+## Démarrage du serveur
+
+Pour lancer le serveur en mode développement:
+```
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. Installez les dépendances :
-```bash
-pip install -r requirements.txt
+Pour la production:
+```
+gunicorn app:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
 ```
 
-## Lancement de l'API
+## Endpoints disponibles
 
-Pour démarrer l'API en mode développement :
-```bash
-uvicorn app:app --reload
+- `GET /recommendations`: Obtenir des recommandations de portefeuille
+  - Paramètres: 
+    - `risk`: "conservative", "balanced", ou "aggressive"
+    - `regions`: Liste de régions séparées par des virgules 
+    - `sectors`: Liste de secteurs séparés par des virgules
+    - `capital`: Montant du capital à investir (en %)
+
+- `GET /news`: Obtenir les dernières actualités pour un titre
+  - Paramètres:
+    - `symbol`: Le symbole boursier (ex: "AAPL")
+
+- `POST /add_ticker`: Ajouter un nouveau titre à l'analyse
+  - Body: `{"symbol": "AAPL"}`
+
+- `GET /tickers_metadata`: Obtenir les métadonnées de tous les titres
+
+- `GET /available_metadata`: Obtenir la liste des régions et secteurs disponibles
+
+## Configuration
+
+Créez un fichier `.env` dans le dossier backend avec les variables suivantes:
+```
+NEWS_API_KEY=votre_clé_api_news
 ```
 
-L'API sera accessible à l'adresse : http://127.0.0.1:8000
+## Synchronisation avec l'application iOS
 
-## Endpoints
-
-### 1. Recommandations de portefeuille
-```
-GET /recommendations
-```
-
-Paramètres :
-- `risk` : Niveau de risque (string)
-- `regions` : Liste des régions séparées par des virgules (optionnel)
-- `sectors` : Liste des secteurs séparés par des virgules (optionnel)
-- `capital` : Montant du capital à investir (float, par défaut 10000.0)
-
-### 2. Actualités financières
-```
-GET /news
-```
-
-Paramètres :
-- `symbol` : Symbole boursier (ex: AAPL, MSFT)
+Assurez-vous que l'adresse IP dans l'application iOS correspond à l'adresse où tourne ce serveur. 
+L'adresse par défaut dans l'application est `localhost:8000`.
 
 ## Documentation API
 
