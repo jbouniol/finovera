@@ -15,11 +15,11 @@ struct Recommendation: Identifiable, Codable {
     let allocation: Double
     let sector: String
     let region: String
-    let sentiment: Double?
+    var sentiment: Double? = 0.0
     
     // Pour rétrocompatibilité avec le code existant
     var reason: String {
-        "Score: \(Int(score))/100 • Sector: \(sector) • Region: \(region)"
+        "Score: \(Int(score * 100))/100 • Secteur: \(sector) • Région: \(region)"
     }
     
     // Détermine l'action recommandée en fonction du score

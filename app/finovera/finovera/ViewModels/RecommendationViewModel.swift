@@ -44,14 +44,20 @@ final class RecommendationViewModel: ObservableObject {
     }
 
     // -------------- Networking --------------
+    func load() {
+        Task {
+            await loadRecommendations()
+        }
+    }
+
     func loadRecommendations() async {
         isLoading = true
         defer { isLoading = false }
         do {
             recs = try await APIService.fetchRecommendations(
                 risk: risk.rawValue,
-                regions: regions.map(\.rawValue),
-                sectors: sectors.map(\.rawValue),
+                regions: Array(regions).map(\.rawValue),
+                sectors: Array(sectors).map(\.rawValue),
                 capital: capitalTarget
             )
             hasShownOfflineAlert = false // reset si succès
