@@ -13,7 +13,9 @@ df = pd.read_csv("data/final_dataset.csv")
 df["target"] = (df["variation_pct"] > 0).astype(int)
 
 # 3. Sélection des features
-features = ["sentiment", "Open", "High", "Low", "Close", "Volume"]
+features = ["sentiment", "Open", "Close", "High", "Low", "Volume",
+            "fed_rate", "unemployment_rate", "cpi"]
+
 X = df[features]
 y = df["target"]
 
