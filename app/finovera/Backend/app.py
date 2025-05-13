@@ -175,6 +175,7 @@ def enrich_ticker(symbol: str) -> bool:
         news = get_news_and_sentiment(symbol)
         if not news:
             print(f"Attention: Pas de news pour {symbol}")
+            
 
         # 4. Sauvegarder les métadonnées
         metadata = {
