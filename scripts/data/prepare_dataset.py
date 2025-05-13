@@ -32,12 +32,17 @@ df_news["sentiment"] = df_news["title"].astype(str).apply(lambda x: analyzer.pol
 df_sentiment = df_news.groupby(["date", "ticker"])["sentiment"].mean().reset_index()
 df_sentiment.rename(columns={"date": "Date", "ticker": "Ticker"}, inplace=True)
 
+# ========= 6. MACRO-AGGRÉGATION ==========
+
+# Fusion avec macro
+df_macro = pd.read_csv("data/macro_data.csv")
+df_macro["Date"] = pd.to_datetime(df_macro["Date"])
+
 # ========== 6. FUSION FINALE ==========
 
 df_final = pd.merge(df_sentiment, df_stock, on=["Date", "Ticker"], how="inner")
+df_final = pd.merge(df_final, df_macro, on="Date", how="left")
 
-# Optionnel : garder que les colonnes utiles
-df_final = df_final[["Date", "Ticker", "sentiment", "variation_pct", "Open", "Close", "High", "Low", "Volume"]]
 
 # Supprimer les lignes avec valeurs manquantes
 df_final.dropna(subset=["sentiment", "variation_pct"], inplace=True)

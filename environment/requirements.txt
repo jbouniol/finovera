@@ -20,3 +20,5 @@ streamlit
 # Optional (pour visualisation avancée ou stockage)
 plotly
 joblib
+
+geonamescache
