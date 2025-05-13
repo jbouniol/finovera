@@ -11,12 +11,17 @@ on:
 
 jobs:
   build:
-
     runs-on: macos-latest
+    env:
+      CI: true
 
     steps:
     - uses: actions/checkout@v4
     - name: Build
-      run: swift build -v
+      run: |
+        cd app/finovera
+        xcodebuild -scheme finovera -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' build
     - name: Run tests
-      run: swift test -v
+      run: |
+        cd app/finovera
+        xcodebuild -scheme finovera -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' test
