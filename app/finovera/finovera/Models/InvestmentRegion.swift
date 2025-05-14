@@ -11,6 +11,8 @@ import Foundation
 enum InvestmentRegion: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
     
+    var name: String { rawValue }
+    
     // Pays majeurs
     case unitedStates = "United States"
     case china = "China"
@@ -65,4 +67,6 @@ enum InvestmentRegion: String, CaseIterable, Identifiable, Codable {
         case .other: return "🌐"
         }
     }
+    
+    var flag: String { flagEmoji }
 }

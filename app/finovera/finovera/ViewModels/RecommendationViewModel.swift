@@ -15,6 +15,10 @@ final class RecommendationViewModel: ObservableObject {
     @Published var isLoading = false          // ➜ popup de chargement
     @Published var showOfflineAlert = false
     @Published var offlineMessage: String? = nil
+    @Published var addedTickers: [TickerMetadata] = []
+    @Published var showTickerSuccessMessage = false
+    @Published var successMessage: String? = nil
+    
     private var hasShownOfflineAlert = false
     
     // Détection de l'environnement CI/tests
@@ -22,9 +26,10 @@ final class RecommendationViewModel: ObservableObject {
     private let isUITesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     // -------------- Persisted choices --------------
-    @AppStorage("capitalTarget")  var capitalTarget: Double = 80      // %
+    @AppStorage("capitalTarget")  var capitalTarget: Double = 10000
     @AppStorage("regions")        private var regionsRaw: String = ""
     @AppStorage("sectors")        private var sectorsRaw: String = ""
+    @AppStorage("userTickers")    private var userTickersRaw: String = ""
 
     // risk devient DÉRIVÉ du capitalTarget
     var risk: InvestorStyle {
@@ -36,7 +41,6 @@ final class RecommendationViewModel: ObservableObject {
         }
     }
 
-
     // region / sector helpers identiques
     var regions: Set<InvestmentRegion> {
         get { Set(regionsRaw.split(separator: ",").compactMap { InvestmentRegion(rawValue: String($0)) }) }
@@ -46,11 +50,33 @@ final class RecommendationViewModel: ObservableObject {
         get { Set(sectorsRaw.split(separator: ",").compactMap { Sector(rawValue: String($0)) }) }
         set { sectorsRaw = newValue.map(\.rawValue).joined(separator: ",") }
     }
+    
+    // User tickers
+    var userTickers: [String] {
+        get { userTickersRaw.split(separator: ",").map { String($0) } }
+        set { userTickersRaw = newValue.joined(separator: ",") }
+    }
 
     // -------------- Networking --------------
     func load() {
         Task {
+            await loadAddedTickers()
             await loadRecommendations()
+        }
+    }
+    
+    func loadAddedTickers() async {
+        do {
+            let allTickers = try await APIService.fetchTickersMetadata()
+            // Filter to only include user added tickers
+            if !userTickers.isEmpty {
+                addedTickers = allTickers.filter { userTickers.contains($0.ticker) }
+            } else {
+                addedTickers = []
+            }
+        } catch {
+            print("Error loading added tickers: \(error.localizedDescription)")
+            addedTickers = []
         }
     }
 
@@ -64,32 +90,101 @@ final class RecommendationViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
+            let activeRegions = regions.map { $0.name }
+            let activeSectors = sectors.map { $0.rawValue }
+            
+            // Use the API service to fetch recommendations
             recs = try await APIService.fetchRecommendations(
-                risk: risk.rawValue,
-                regions: Array(regions).map(\.rawValue),
-                sectors: Array(sectors).map(\.rawValue),
-                capital: capitalTarget
+                regions: activeRegions,
+                sectors: activeSectors,
+                allocationAmount: capitalTarget
             )
-            hasShownOfflineAlert = false // reset si succès
+            
+            // Sort recommendations by score
+            recs.sort { $0.score > $1.score }
+            
+            // Reset offline mode if successful
+            offlineMessage = nil
+            showOfflineAlert = false
+            hasShownOfflineAlert = false
         } catch {
-            print("Erreur API: \(error.localizedDescription)")
-            recs = Recommendation.mock
-            if !hasShownOfflineAlert {
-                if let urlError = error as? URLError, urlError.code == .notConnectedToInternet {
-                    offlineMessage = "Mode hors-ligne : aucune connexion réseau détectée. Les recommandations affichées sont simulées."
-                } else {
-                    offlineMessage = "Mode hors-ligne : impossible de joindre le serveur. Les recommandations affichées sont simulées."
-                }
+            print("Error loading recommendations: \(error)")
+            
+            // Show offline mode alert - only if we're not already in mock/offline mode
+            if !APIService.useMocks {
+                offlineMessage = "Impossible de charger les recommandations : \(error.localizedDescription)"
                 showOfflineAlert = true
                 hasShownOfflineAlert = true
             }
         }
     }
+    
+    // Add a ticker to user's watchlist
+    func addTicker(_ symbol: String) async -> Bool {
+        guard !symbol.isEmpty else { return false }
+        
+        isLoading = true
+        
+        do {
+            try await APIService.addTicker(symbol)
+            
+            // Reload data
+            await loadAddedTickers()
+            await loadRecommendations()
+            
+            // Show success message
+            successMessage = "Le ticker \(symbol) a été ajouté avec succès."
+            showTickerSuccessMessage = true
+            
+            // Hide message after delay
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                withAnimation {
+                    showTickerSuccessMessage = false
+                }
+            }
+            
+            isLoading = false
+            return true
+        } catch {
+            print("Error adding ticker: \(error)")
+            isLoading = false
+            return false
+        }
+    }
+    
+    // Remove a ticker from user's watchlist
+    func removeTicker(_ symbol: String) {
+        if userTickers.contains(symbol) {
+            userTickers = userTickers.filter { $0 != symbol }
+            
+            // Reload data
+            Task {
+                await loadAddedTickers()
+                await loadRecommendations()
+            }
+        }
+    }
 
     // -------------- Mutators --------------
-    func updateCapitalTarget(_ value: Double) { capitalTarget = value ; loadRecommendations() }
-    func toggleRegion(_ r: InvestmentRegion)  { regions.toggle(r);   loadRecommendations() }
-    func toggleSector(_ s: Sector)            { sectors.toggle(s);  loadRecommendations() }
+    func updateCapitalTarget(_ value: Double) {
+        capitalTarget = value
+        Task {
+            await loadRecommendations()
+        }
+    }
+    func toggleRegion(_ r: InvestmentRegion) {
+        regions.toggle(r)
+        Task {
+            await loadRecommendations()
+        }
+    }
+    func toggleSector(_ s: Sector) {
+        sectors.toggle(s)
+        Task {
+            await loadRecommendations()
+        }
+    }
     func updateCapitalTarget(_ value: Double, completion: @escaping () -> Void) {
         capitalTarget = value
         Task {
@@ -97,8 +192,6 @@ final class RecommendationViewModel: ObservableObject {
             completion()
         }
     }
-
-
 }
 
 extension Set {

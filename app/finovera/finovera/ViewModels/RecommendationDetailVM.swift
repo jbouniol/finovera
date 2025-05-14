@@ -5,17 +5,32 @@
 //  Created by Jonathan Bouniol on 30/04/2025.
 //
 
-import Foundation
+import SwiftUI
 
 @MainActor
-final class RecommendationDetailVM: ObservableObject {
-    @Published var articles: [Article] = []
+class RecommendationDetailVM: ObservableObject {
+    @Published var news: [Article] = []
     @Published var isLoading = false
-
-    func loadNews(symbol: String) {
+    @Published var errorMessage: String? = nil
+    @Published var showError = false
+    
+    func loadNews(for symbol: String) {
+        isLoading = true
+        
         Task {
-            isLoading = true
-            articles = (try? await NewsService.fetchNews(for: symbol)) ?? []
+            do {
+                news = try await APIService.fetchNews(for: symbol)
+            } catch {
+                errorMessage = "Could not load news: \(error.localizedDescription)"
+                showError = true
+                print("Error loading news: \(error)")
+                
+                // Fallback to mock data if error and not already using mocks
+                if !APIService.useMocks {
+                    news = Article.getMockNews(for: symbol)
+                }
+            }
+            
             isLoading = false
         }
     }

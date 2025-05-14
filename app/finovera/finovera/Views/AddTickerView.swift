@@ -11,6 +11,11 @@ struct AddTickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var ticker = ""
     @State private var isSubmitting = false
+    @State private var errorMessage: String? = nil
+    @State private var showError = false
+    
+    // Completion handler called when a ticker is successfully added
+    var onTickerAdded: ((String) -> Void)?
 
     var body: some View {
         NavigationStack {
@@ -22,15 +27,9 @@ struct AddTickerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
                 Button("Add") {
-                    Task {
-                        withAnimation { isSubmitting = true }
-                        try? await APIService.addTicker(ticker.uppercased())
-                        withAnimation { isSubmitting = false }
-                        dismiss()
-                    }
+                    addTicker()
                 }
                 .disabled(ticker.isEmpty || isSubmitting)
-                .disabled(ticker.isEmpty)
                 .frame(maxWidth: .infinity).padding()
                 .background(Color("Accent")).foregroundColor(.white)
                 .clipShape(Capsule())
@@ -38,13 +37,44 @@ struct AddTickerView: View {
             .padding()
             .navigationTitle("Add a security")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
             .overlay {
                 if isSubmitting {
                     LoadingView(message: "Ajout du ticker…")
                 }
             }
-
+            .alert("Erreur", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "Une erreur est survenue")
+            }
         }
-
+    }
+    
+    private func addTicker() {
+        Task {
+            withAnimation { isSubmitting = true }
+            do {
+                try await APIService.addTicker(ticker.uppercased())
+                withAnimation { isSubmitting = false }
+                
+                // Call completion handler if provided
+                if let onTickerAdded = onTickerAdded {
+                    onTickerAdded(ticker.uppercased())
+                } else {
+                    dismiss()
+                }
+            } catch {
+                errorMessage = "Échec de l'ajout: \(error.localizedDescription)"
+                showError = true
+                withAnimation { isSubmitting = false }
+            }
+        }
     }
 }

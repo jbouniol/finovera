@@ -20,6 +20,7 @@ from ml_models import ModelManager
 import os
 from dotenv import load_dotenv
 import json
+import traceback
 
 # Chargement des variables d'environnement
 load_dotenv()
@@ -208,103 +209,263 @@ def enrich_ticker(symbol: str) -> bool:
         return False
 
 def get_all_tickers_from_csv(regions: list, sectors: list):
-    df = pd.read_csv("data/final_dataset.csv")
-    df_meta = pd.read_csv("data/tickers_metadata.csv") if os.path.exists("data/tickers_metadata.csv") else None
-    if df_meta is not None:
-        df = df.merge(df_meta, left_on="Ticker", right_on="ticker", how="left")
-    else:
-        df["country"] = df["region"] if "region" in df.columns else "Unknown"
-        df["sector"] = df["sector"] if "sector" in df.columns else "Unknown"
-    tickers = df["Ticker"].unique().tolist()
-    if regions:
-        df = df[df["country"].isin(regions)]
-    if sectors:
-        df = df[df["sector"].isin(sectors)]
-    return df["Ticker"].unique().tolist()
+    """Récupère tous les tickers à partir du fichier CSV avec filtrage par région et secteur"""
+    try:
+        # Utiliser un chemin absolu pour accéder au fichier de données
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        df_path = os.path.join(base_dir, "data", "final_dataset.csv")
+        
+        print(f"Lecture des données depuis: {df_path}")
+        
+        if not os.path.exists(df_path):
+            print(f"⚠️ Fichier non trouvé: {df_path}")
+            return ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
+            
+        df = pd.read_csv(df_path)
+        
+        # Récupération des métadonnées depuis le fichier tickers_metadata.py de scripts
+        tickers_metadata_path = os.path.join(base_dir, "scripts", "tickers_metadata.py")
+        
+        # Création d'un dictionnaire de métadonnées à partir de tickers_metadata.py
+        tickers_meta = {}
+        try:
+            # Importer les métadonnées depuis le fichier scripts/tickers_metadata.py
+            import sys
+            sys.path.append(base_dir)
+            from scripts.tickers_metadata import tickers_metadata
+            
+            for meta in tickers_metadata:
+                ticker = meta.get("ticker")
+                if ticker:
+                    tickers_meta[ticker] = {
+                        "name": meta.get("name", "Unknown"),
+                        "country": meta.get("country", "Unknown"),
+                        "sector": meta.get("sector", "Unknown")
+                    }
+        except Exception as e:
+            print(f"⚠️ Erreur lors du chargement des métadonnées: {e}")
+        
+        # Ajouter les colonnes de pays et secteur au DataFrame
+        tickers = df["Ticker"].unique().tolist()
+        
+        # Créer un DataFrame temporaire avec les colonnes country et sector
+        meta_data = []
+        for ticker in tickers:
+            meta = tickers_meta.get(ticker, {})
+            meta_data.append({
+                "Ticker": ticker,
+                "country": meta.get("country", "Unknown"),
+                "sector": meta.get("sector", "Unknown")
+            })
+        
+        df_meta = pd.DataFrame(meta_data)
+        
+        # Fusionner les informations de métadonnées avec le DataFrame original
+        df = df.merge(df_meta, on="Ticker", how="left")
+        
+        # Filtrage par région et secteur si spécifiés
+        filtered_df = df.copy()
+        if regions:
+            filtered_df = filtered_df[filtered_df["country"].isin(regions)]
+        if sectors:
+            filtered_df = filtered_df[filtered_df["sector"].isin(sectors)]
+        
+        filtered_tickers = filtered_df["Ticker"].unique().tolist()
+        
+        if not filtered_tickers:
+            print("⚠️ Aucun ticker trouvé après filtrage")
+            return tickers[:10]  # Retourne les 10 premiers tickers si aucun ne correspond aux filtres
+            
+        return filtered_tickers
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de la récupération des tickers: {e}")
+        return ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
 
 def generate_recommendations(risk: str, regions: List[str], sectors: List[str], capital: float) -> List[Recommendation]:
     """Génère des recommandations de portefeuille"""
+    print(f"Génération de recommandations: risk={risk}, regions={regions}, sectors={sectors}, capital={capital}")
     recommendations = []
     
-    # Gestion des paramètres de filtrage
-    # Si aucune région ou secteur n'est spécifié, utiliser tous ceux disponibles
-    if not regions and not sectors:
-        try:
-            tickers = get_all_tickers_from_csv([], [])
-        except Exception as e:
-            print(f"Erreur lors de la récupération des tickers: {e}")
-            # Fallback vers une liste de tickers populaires
+    try:
+        # Récupérer les tickers en fonction des filtres
+        tickers = get_all_tickers_from_csv(regions, sectors)
+        print(f"Tickers trouvés: {len(tickers)}")
+        
+        if not tickers:
+            print("⚠️ Aucun ticker trouvé, utilisation des tickers par défaut")
             tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
-    else:
-        try:
-            tickers = get_all_tickers_from_csv(regions, sectors)
-            if not tickers:
-                print("Aucun ticker trouvé avec les filtres spécifiés, utilisation des tickers populaires")
-                tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
-        except Exception as e:
-            print(f"Erreur lors de la récupération des tickers filtrés: {e}")
-            tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM", "JNJ", "V"]
-    
-    for symbol in tickers[:20]:  # Limiter à 20 tickers pour des performances optimales
-        try:
-            # Récupération des données
-            market_data = get_market_data(symbol)
-            if market_data.empty:
-                print(f"Pas de données de marché pour {symbol}")
-                continue
+        
+        # Charger les données historiques
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        data_path = os.path.join(base_dir, "data", "final_dataset.csv")
+        
+        # Si le fichier de données existe, l'utiliser directement plutôt que de récupérer les données en temps réel
+        if os.path.exists(data_path):
+            print(f"Utilisation des données locales depuis: {data_path}")
+            df = pd.read_csv(data_path)
+            df["Date"] = pd.to_datetime(df["Date"])
+            
+            # Récupérer les informations de métadonnées
+            try:
+                import sys
+                sys.path.append(base_dir)
+                from scripts.tickers_metadata import tickers_metadata
                 
-            # Calcul du sentiment moyen
-            news = get_news_and_sentiment(symbol)
-            sentiment = np.mean([analyzer.polarity_scores(a.title)['compound'] for a in news]) if news else 0
+                # Créer un dictionnaire des métadonnées
+                ticker_info = {}
+                for meta in tickers_metadata:
+                    ticker = meta.get("ticker")
+                    if ticker:
+                        ticker_info[ticker] = {
+                            "name": meta.get("name", ticker),
+                            "sector": meta.get("sector", "Unknown"),
+                            "country": meta.get("country", "Unknown")
+                        }
+            except Exception as e:
+                print(f"⚠️ Erreur lors du chargement des métadonnées: {e}")
+                ticker_info = {}
             
-            # Préparation des données pour la prédiction
-            latest_data = market_data.iloc[-1].copy()
-            latest_data["sentiment"] = sentiment
+            # Limiter aux tickers sélectionnés
+            df_filtered = df[df["Ticker"].isin(tickers)]
+            if df_filtered.empty:
+                print("⚠️ Aucune donnée pour les tickers filtrés")
+                return []
             
-            # Créer un DataFrame avec les features nécessaires
-            pred_data = pd.DataFrame([{
-                'Close': latest_data['Close'],
-                'Volume': latest_data['Volume'],
-                'Returns': latest_data['Returns'],
-                'MA5': latest_data['MA5'],
-                'MA20': latest_data['MA20'],
-                'sentiment': sentiment
-            }])
+            # Obtenir la date la plus récente
+            latest_date = df_filtered["Date"].max()
+            print(f"Date la plus récente: {latest_date}")
             
-            # Prédictions
-            predictions = model_manager.predict(pred_data)
-            score = model_manager.get_ensemble_score(predictions)
+            # Filtrer par date récente
+            latest_df = df_filtered[df_filtered["Date"] == latest_date]
+            if latest_df.empty:
+                # Si pas de données pour la dernière date, prendre les dernières données disponibles pour chaque ticker
+                latest_df = df_filtered.groupby("Ticker").apply(lambda x: x.nlargest(1, "Date")).reset_index(drop=True)
             
-            # Informations du ticker
-            info = get_ticker_info(symbol)
-            
-            # Calcul de l'allocation selon le risque
-            allocation_factor = 0.0
-            if risk == "conservative":
-                allocation_factor = 0.05
-            elif risk == "balanced":
-                allocation_factor = 0.08
-            else:  # aggressive
-                allocation_factor = 0.12
+            # Calculer les scores basés sur le sentiment et la variation
+            for _, row in latest_df.iterrows():
+                ticker = row["Ticker"]
                 
-            # Capital est un pourcentage, il faut l'ajuster
-            adjusted_capital = min(capital / 100.0, 1.0)
-            allocation = 10000 * allocation_factor * adjusted_capital * score
-            
-            recommendations.append(Recommendation(
-                symbol=symbol,
-                name=info["name"],
-                score=score,
-                allocation=allocation,
-                sector=info["sector"],
-                region=info["region"]
-            ))
-        except Exception as e:
-            print(f"Erreur lors de l'analyse de {symbol}: {e}")
-            continue
+                # Obtenir les métadonnées du ticker
+                meta = ticker_info.get(ticker, {})
+                name = meta.get("name", ticker)
+                sector = meta.get("sector", "Unknown")
+                region = meta.get("country", meta.get("region", "Unknown"))
+                
+                # Calculer le score en fonction du sentiment et de la variation prévue
+                sentiment = row.get("sentiment", 0)
+                var_pct = row.get("variation_pct", 0)
+                
+                # Normaliser le score entre 0 et 1 (sentiment est déjà entre -1 et 1)
+                # Convertir sentiment de [-1,1] à [0,1]
+                norm_sentiment = (sentiment + 1) / 2
+                
+                # Normaliser var_pct (conversion empirique)
+                norm_var = min(max((var_pct + 0.05) / 0.1, 0), 1)
+                
+                # Score combiné, donner plus de poids au sentiment si disponible
+                if sentiment != 0:
+                    score = 0.7 * norm_sentiment + 0.3 * norm_var
+                else:
+                    score = norm_var
+                
+                # Ajuster en fonction du profil de risque
+                risk_factor = 1.0
+                if risk == "conservative":
+                    risk_factor = 0.8
+                elif risk == "aggressive":
+                    risk_factor = 1.2
+                
+                score = min(max(score * risk_factor, 0), 1)
+                
+                # Calcul de l'allocation selon le risque
+                allocation_factor = 0.0
+                if risk == "conservative":
+                    allocation_factor = 0.05
+                elif risk == "balanced":
+                    allocation_factor = 0.08
+                else:  # aggressive
+                    allocation_factor = 0.12
+                
+                # Capital est un pourcentage, il faut l'ajuster
+                adjusted_capital = min(capital / 100.0, 1.0)
+                allocation = 10000 * allocation_factor * adjusted_capital * score
+                
+                recommendations.append(Recommendation(
+                    symbol=ticker,
+                    name=name,
+                    score=score,
+                    allocation=allocation,
+                    sector=sector,
+                    region=region
+                ))
+        else:
+            # Si pas de données locales, utiliser la méthode en temps réel avec YFinance
+            print("⚠️ Pas de données locales, utilisation de YFinance")
+            for symbol in tickers[:20]:  # Limiter à 20 tickers pour des performances optimales
+                try:
+                    # Récupération des données
+                    market_data = get_market_data(symbol)
+                    if market_data.empty:
+                        print(f"Pas de données de marché pour {symbol}")
+                        continue
+                    
+                    # Calcul du sentiment moyen
+                    news = get_news_and_sentiment(symbol)
+                    sentiment = np.mean([analyzer.polarity_scores(a.title)['compound'] for a in news]) if news else 0
+                    
+                    # Préparation des données pour la prédiction
+                    latest_data = market_data.iloc[-1].copy()
+                    latest_data["sentiment"] = sentiment
+                    
+                    # Créer un DataFrame avec les features nécessaires
+                    pred_data = pd.DataFrame([{
+                        'Close': latest_data['Close'],
+                        'Volume': latest_data['Volume'],
+                        'Returns': latest_data['Returns'],
+                        'MA5': latest_data['MA5'],
+                        'MA20': latest_data['MA20'],
+                        'sentiment': sentiment
+                    }])
+                    
+                    # Prédictions
+                    predictions = model_manager.predict(pred_data)
+                    score = model_manager.get_ensemble_score(predictions)
+                    
+                    # Informations du ticker
+                    info = get_ticker_info(symbol)
+                    
+                    # Calcul de l'allocation selon le risque
+                    allocation_factor = 0.0
+                    if risk == "conservative":
+                        allocation_factor = 0.05
+                    elif risk == "balanced":
+                        allocation_factor = 0.08
+                    else:  # aggressive
+                        allocation_factor = 0.12
+                    
+                    # Capital est un pourcentage, il faut l'ajuster
+                    adjusted_capital = min(capital / 100.0, 1.0)
+                    allocation = 10000 * allocation_factor * adjusted_capital * score
+                    
+                    recommendations.append(Recommendation(
+                        symbol=symbol,
+                        name=info["name"],
+                        score=score,
+                        allocation=allocation,
+                        sector=info["sector"],
+                        region=info["region"]
+                    ))
+                except Exception as e:
+                    print(f"Erreur lors de l'analyse de {symbol}: {e}")
+                    continue
+    except Exception as e:
+        print(f"Erreur lors de la génération des recommandations: {e}")
+        print(traceback.format_exc())
     
     # Tri par score
     recommendations.sort(key=lambda x: x.score, reverse=True)
+    print(f"Nombre de recommandations générées: {len(recommendations)}")
     return recommendations
 
 # Endpoints
