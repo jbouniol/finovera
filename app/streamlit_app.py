@@ -158,13 +158,8 @@ if page == "💡 Recommandations":
         default=["United States"]
     )
     sectors = st.sidebar.multiselect(
-<<<<<<< HEAD
-        "Secteurs d'intérêt",
-        options=list({entry["sector"] for entry in tickers_metadata}),
-=======
         "Secteurs",
         options=list({m["sector"] for m in tickers_metadata}),
->>>>>>> main
         default=["Technology"]
     )
 
@@ -193,76 +188,9 @@ if page == "💡 Recommandations":
         enrich_and_update_tickers(missing)
         df = load_final().merge(df_meta, on="Ticker", how="left")
 
-<<<<<<< HEAD
-    if tickers_missing:
-        st.warning(f"⚠️ {len(tickers_missing)} ticker(s) absents de la base. Mise à jour en cours...")
-        new_rows = enrich_and_update_tickers(tickers_missing)
-        if new_rows is not None:
-            df = pd.read_csv("data/final_dataset.csv")
-            df["Date"] = pd.to_datetime(df["Date"])
-            df = df.merge(df_meta, on="Ticker", how="left")
-
-    selected_countries = countries if countries else df["country"].dropna().unique().tolist()
-    selected_sectors = sectors if sectors else df["sector"].dropna().unique().tolist()
-
-    df_filtered = df[
-        (df["country"].isin(selected_countries)) &
-        (df["sector"].isin(selected_sectors))
-    ]
-
-    if df_filtered.empty:
-        st.warning("⚠️ Aucun résultat ne correspond à vos filtres. Essayez d'élargir votre sélection.")
-        st.stop()
-
-    def sentiment_label(score):
-        if score >= 0.5:
-            return "🟢 Très positif ✅"
-        elif score >= 0.2:
-            return "🟡 Modérément positif"
-        elif score >= 0:
-            return "🟠 Neutre"
-        else:
-            return "🔴 Négatif ❌"
-
-    def plot_price(df, ticker):
-        df_t = df[df["Ticker"] == ticker].sort_values("Date").tail(30)
-        fig, ax = plt.subplots()
-        ax.plot(df_t["Date"], df_t["Close"], marker="o")
-        ax.set_title(f"📈 Évolution de {ticker}")
-        ax.set_ylabel("Prix de clôture")
-        st.pyplot(fig)
-
-    model = models["Random Forest"]
-    model.fit(df_filtered[features], (df_filtered["variation_pct"] > 0).astype(int))
-    df_filtered = df_filtered.copy()
-    df_filtered["score"] = model.predict_proba(df_filtered[features])[:, 1]
-
-    df_today = df_filtered[df_filtered["Date"] == df_filtered["Date"].max()]
-    top_recos = df_today.sort_values("score", ascending=False).head(10)
-    top_recos["SentimentLabel"] = top_recos["sentiment"].apply(sentiment_label)
-
-    if user_tickers:
-        df_portfolio = df[df["Ticker"].isin(user_tickers)]
-        df_portfolio_today = df_portfolio[df_portfolio["Date"] == df_portfolio["Date"].max()]
-        if not df_portfolio_today.empty:
-            df_portfolio_today["score"] = model.predict_proba(df_portfolio_today[features])[:, 1]
-            def reco_action(score):
-                if score >= 0.6:
-                    return "✅ Garder / Renforcer"
-                elif score >= 0.4:
-                    return "😐 Garder"
-                else:
-                    return "❌ Vendre"
-            df_portfolio_today["Action recommandée"] = df_portfolio_today["score"].apply(reco_action)
-            st.subheader("📊 Recommandations sur votre portefeuille")
-            st.dataframe(df_portfolio_today[["Ticker", "name", "sentiment", "score", "Action recommandée"]])
-        else:
-            st.warning("⚠️ Aucun résultat trouvé pour vos tickers aujourd'hui.")
-=======
     # filtres
     if not countries and not sectors:
         df_f = df.copy()
->>>>>>> main
     else:
         sel_c = countries or df["country"].dropna().unique().tolist()
         sel_s = sectors   or df["sector"].dropna().unique().tolist()
@@ -345,33 +273,8 @@ if page == "💡 Recommandations":
         for _, r in sub.head(3).iterrows():
             st.write(f"- **{r['title']}** ({r['source']}) — _{r['publishedAt']}_")
 
-<<<<<<< HEAD
-    st.subheader("✅ Recommandations d'achat aujourd'hui")
-    st.dataframe(top_recos[["Date", "Ticker", "name", "country",  "SentimentLabel", "score"]])
-
-    st.subheader("📰 Dernières actualités influentes")
-    for ticker in top_recos["Ticker"].unique():
-        st.markdown(f"### {ticker}")
-        news = df_news[(df_news["ticker"] == ticker) & (df_news["date"] == df_news["date"].max())]
-        for _, row in news.head(3).iterrows():
-            st.markdown(f"- **{row['title']}** ({row['source']})")
-            st.markdown(f"<small>{row['publishedAt']}</small>", unsafe_allow_html=True)
-
-    st.subheader("📉 Évolution du prix")
-    for ticker in top_recos["Ticker"].unique():
-        plot_price(df, ticker)
-
-    st.subheader("🗺️ Répartition géographique des recommandations")
-    build_map(top_recos, tickers_metadata)
-
-    st.markdown("📌 *Modèle utilisé : Random Forest entraîné sur vos filtres.*")
-
-# ==================== PAGE 2 : MISE À JOUR ====================
-elif page == "📥 Mise à jour des données":
-=======
 # ─────────────────────────────────────────────────── PAGE MISE À JOUR ──
 elif page == "📥 Mise à jour":
->>>>>>> main
     st.header("📥 Mise à jour quotidienne des données")
     if st.button("🔄 Lancer la mise à jour"):
         try:
