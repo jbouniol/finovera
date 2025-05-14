@@ -1,8 +1,26 @@
 """
 Finovera – Streamlit Dashboard + Simulation PPO avec fine-tune express
 =====================================================================
+Application centrale pour la gestion, l’affichage et la simulation de portefeuilles d’actions
+pilotée par IA (Random Forest, PPO RL), dédiée à l’investisseur particulier.
+
+Ce module Streamlit permet :
+    • d’afficher des recommandations IA sur les actions à renforcer/vendre/garder
+    • de simuler la performance de son portefeuille selon différentes contraintes de risque
+    • de lancer la mise à jour automatique des données marché et news
+    • d’intégrer et enrichir automatiquement de nouveaux tickers via l’UI
+
+Pages Streamlit :
+    - 💡 Recommandations : suggestions personnalisées, carte des actifs, news influentes
+    - 📥 Mise à jour : actualisation des données stockées (marché, news, sentiment)
+    - 🤖 Simulation IA : backtest et allocations RL avec contrainte de préservation du capital
+
+Entrées principales : données marché enrichies, news, modèles ML/PPO, méta-tickers.
+Sorties : dashboard web interactif, recommandations, résultats simulation, CSV mis à jour.
+
 Dernière mise à jour : 2025-05-14
 """
+
 import os
 import sys
 import traceback
@@ -17,10 +35,9 @@ from PIL import Image
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
-
 import torch
 
-# pour importer vos modules locaux
+# ===== Imports internes du projet =====
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(ROOT_DIR)
 
@@ -28,20 +45,18 @@ from scripts.models.train_model import models, features
 from scripts.tickers_metadata import tickers_metadata
 from scripts.ticker_enrichment import enrich_and_update_tickers
 from scripts.data.daily_update import daily_update
-from scripts.envs.PortfolioEnv import PortfolioEnv  # votre env patché
+from scripts.envs.PortfolioEnv import PortfolioEnv  # environnement RL custom
 
-# flags globaux
-USE_VOLUME    = True
-USE_SENTIMENT = True
+# ===== Flags globaux =====
+USE_VOLUME    = True  # Active la prise en compte du volume dans PPO
+USE_SENTIMENT = True  # Active la prise en compte du sentiment
 
-# config Streamlit
+# ======== CONFIG UI =========
 st.set_page_config(page_title="FinoVera", layout="wide")
-
-# logo
 logo = Image.open(os.path.join("assets", "logo.png"))
 st.image(logo, width=400)
 
-# thème
+# ======== THEMING =========
 theme = st.sidebar.selectbox("🎨 Thème", ["Sombre", "Clair", "Trade Republic"])
 if theme == "Sombre":
     st.markdown("""
@@ -68,18 +83,27 @@ else:
         </style>
     """, unsafe_allow_html=True)
 
-# navigation
+# ======== NAVIGATION ========
 page = st.sidebar.radio("📌 Navigation", [
     "💡 Recommandations",
     "📥 Mise à jour",
     "🤖 Simulation IA"
 ])
 
-# ───────────────────────────────────────────────── utilitaires PPO ─────────
+# ======== UTILS PPO RL ========
+
 DATASET_CSV = os.path.join(ROOT_DIR, "data", "final_dataset.csv")
 MODEL_PATH  = os.path.join(ROOT_DIR, "models", "ppo_portfolio.zip")
 
 def load_dataset():
+    """
+    Charge et pivote le dataset principal en trois matrices DataFrame.
+
+    Returns:
+        prices (pd.DataFrame): matrice (date x ticker) des cours de clôture
+        volumes (pd.DataFrame): matrice (date x ticker) des volumes échangés
+        sentiments (pd.DataFrame): matrice (date x ticker) des scores de sentiment
+    """
     DATE_COL = "Date"
     df = pd.read_csv(DATASET_CSV, parse_dates=[DATE_COL])
     prices     = df.pivot(index=DATE_COL, columns="Ticker", values="Close")
@@ -88,13 +112,22 @@ def load_dataset():
     return prices, volumes, sentiments
 
 def get_finetuned_model(env, n_tickers: int) -> PPO:
+    """
+    Charge le modèle PPO général puis fine-tune rapidement pour l’environnement donné
+    et le nombre d’actifs choisis.
+
+    Args:
+        env (DummyVecEnv): environnement RL custom vectorisé
+        n_tickers (int): nombre d’actifs dans la simulation
+    Returns:
+        model (PPO): modèle PPO prêt à l’emploi
+    """
     path = os.path.join(ROOT_DIR, f"models/ppo_{n_tickers}.zip")
     if os.path.exists(path):
         return PPO.load(path, device="cpu")
-    # charge modèle global
     model = PPO.load(MODEL_PATH, device="cpu")
     model.set_env(env)
-    # adapte 1ʳᵉ couche à la nouvelle dim
+    # Réadapte la première couche du réseau à la nouvelle dimension d’observation
     in_dim = env.observation_space.shape[0]
     hidden = model.policy.mlp_extractor.policy_net[0].out_features
     for net in (model.policy.mlp_extractor.policy_net,
@@ -102,7 +135,7 @@ def get_finetuned_model(env, n_tickers: int) -> PPO:
         net[0] = torch.nn.Linear(in_dim, hidden)
         torch.nn.init.orthogonal_(net[0].weight, gain=1.0)
         torch.nn.init.zeros_(net[0].bias)
-    # fine-tune express
+    # Fine-tuning rapide (quelques milliers de pas)
     steps = min(2000, 500 * n_tickers)
     with st.spinner(f"🔧 Fine-tuning pour {n_tickers} tickers ({steps} pas)…"):
         model.learn(total_timesteps=steps)
@@ -110,13 +143,21 @@ def get_finetuned_model(env, n_tickers: int) -> PPO:
     return model
 
 def run_ppo(user_portfolio: dict[str, float]):
+    """
+    Lance la simulation RL sur le portefeuille utilisateur (PPO).
+    Args:
+        user_portfolio (dict): mapping {ticker: montant}
+    Returns:
+        alloc_hist (list[np.ndarray]): historique des allocations à chaque pas
+        value_hist (list[float]): historique de la valeur cumulée
+        tickers (list[str]): tickers simulés
+    """
     if not user_portfolio:
         st.warning("Veuillez saisir un portefeuille puis relancer.")
         return None, None, None
     tickers = list(user_portfolio.keys())
     weights = np.array(list(user_portfolio.values()), dtype=np.float32)
     weights /= weights.sum()
-
     prices, volumes, sentiments = load_dataset()
     try:
         prices     = prices[tickers]
@@ -127,13 +168,13 @@ def run_ppo(user_portfolio: dict[str, float]):
         return None, None, None
 
     env = DummyVecEnv([lambda: PortfolioEnv(
-    prices=prices.values,
-    volumes=(volumes.values if USE_VOLUME else None),
-    sentiments=(sentiments.values if USE_SENTIMENT else None),
-    tickers=tickers,
-    initial_allocation=weights,
-    cap_floor=cap_floor / 100   # ← nouveau paramètre entre 0.5 et 1.0
-)])
+        prices=prices.values,
+        volumes=(volumes.values if USE_VOLUME else None),
+        sentiments=(sentiments.values if USE_SENTIMENT else None),
+        tickers=tickers,
+        initial_allocation=weights,
+        cap_floor=cap_floor / 100
+    )])
 
     model = get_finetuned_model(env, n_tickers=len(tickers))
 
@@ -148,7 +189,7 @@ def run_ppo(user_portfolio: dict[str, float]):
                             env.envs[0].portfolio_value))
     return alloc_hist, value_hist, tickers
 
-# ────────────────────────────────────────────────── PAGE RECOMMANDATIONS ──
+# ================= PAGE RECOMMANDATIONS ==================
 if page == "💡 Recommandations":
     st.sidebar.header("🛠️ Vos préférences")
     risk_profile = st.sidebar.selectbox("Profil de risque", ["Conservateur","Modéré","Agressif"])
@@ -168,12 +209,14 @@ if page == "💡 Recommandations":
 
     @st.cache_data
     def load_final():
+        """Charge le CSV final et parse la colonne Date."""
         df = pd.read_csv("data/final_dataset.csv")
         df["Date"] = pd.to_datetime(df["Date"])
         return df
     df = load_final()
 
     def load_news():
+        """Charge les dernières news enrichies et parse la date."""
         dfn = pd.read_csv("data/news_data.csv")
         dfn["date"] = pd.to_datetime(dfn["publishedAt"]).dt.date
         return dfn
@@ -188,7 +231,7 @@ if page == "💡 Recommandations":
         enrich_and_update_tickers(missing)
         df = load_final().merge(df_meta, on="Ticker", how="left")
 
-    # filtres
+    # Filtres dynamiques pays/secteur
     if not countries and not sectors:
         df_f = df.copy()
     else:
@@ -203,15 +246,18 @@ if page == "💡 Recommandations":
             st.warning("⚠️ Aucun actif ne correspond à ces filtres.")
             st.stop()
 
+    # Entraînement du Random Forest sur les données filtrées
     model_rf = models["Random Forest"]
     model_rf.fit(df_f[features], (df_f["variation_pct"] > 0).astype(int))
     df_f = df_f.copy()
     df_f["score"] = model_rf.predict_proba(df_f[features])[:,1]
 
+    # Sélection des meilleures recos à la date la plus récente
     last = df_f[df_f["Date"] == df_f["Date"].max()]
     recos = last.sort_values("score", ascending=False).head(10)
 
     def sentiment_label(s):
+        """Mappe un score de sentiment vers un label emoji explicite."""
         if s >= 0.5: return "🟢 Très positif ✅"
         if s >= 0.2: return "🟡 Modéré"
         if s >= 0:   return "🟠 Neutre"
@@ -229,6 +275,7 @@ if page == "💡 Recommandations":
             df_portf_last = df_portf_last.copy()
             df_portf_last["score"] = model_rf.predict_proba(df_portf_last[features])[:,1]
             def action_reco(s):
+                """Convertit un score en action recommandée."""
                 if s >= 0.6:   return "✅ Garder / Renforcer"
                 elif s >= 0.4: return "😐 Garder"
                 else:          return "❌ Vendre"
@@ -242,9 +289,10 @@ if page == "💡 Recommandations":
     else:
         st.info("📝 Entrez vos tickers dans la sidebar pour des recos perso.")
 
-    # carte géographique
+    # Carte géographique des recommandations
     @st.cache_data
     def get_country_coords():
+        """Coordonnées pays pour la carte pydeck."""
         return {
             "United States": [37.0902, -95.7129], "Mexico": [23.6345, -102.5528],
             "Finland": [61.9241, 25.7482], "United Kingdom":[55.3781, -3.4360],
@@ -265,7 +313,7 @@ if page == "💡 Recommandations":
                           get_color="[200,30,0,160]")]
     ))
 
-    # news influentes
+    # News influentes
     st.subheader("📰 Dernières news influentes")
     for t in recos["Ticker"]:
         st.markdown(f"#### {t}")
@@ -273,7 +321,7 @@ if page == "💡 Recommandations":
         for _, r in sub.head(3).iterrows():
             st.write(f"- **{r['title']}** ({r['source']}) — _{r['publishedAt']}_")
 
-# ─────────────────────────────────────────────────── PAGE MISE À JOUR ──
+# ================= PAGE MISE À JOUR ==================
 elif page == "📥 Mise à jour":
     st.header("📥 Mise à jour quotidienne des données")
     if st.button("🔄 Lancer la mise à jour"):
@@ -284,20 +332,18 @@ elif page == "📥 Mise à jour":
             st.error("❌ Erreur lors de la mise à jour.")
             st.text(traceback.format_exc())
 
-# ─────────────────────────────────────────────────── PAGE SIMULATION IA ──
+# ================= PAGE SIMULATION IA ==================
 else:
     st.header("🤖 Simulation IA – Portefeuille personnalisé")
-
-    # Slider capital preservation
+    # Slider capital preservation (% de capital garanti)
     cap_floor = st.slider(
-    "🔒 Capital preservation (%)",
-    min_value=50,
-    max_value=100,
-    value=90,
-    step=1,
-    help="90 % → la valeur ne doit jamais descendre sous 90 % du capital initial."
-)
-
+        "🔒 Capital preservation (%)",
+        min_value=50,
+        max_value=100,
+        value=90,
+        step=1,
+        help="90 % → la valeur ne doit jamais descendre sous 90 % du capital initial."
+    )
     raw = st.text_area("📩 Votre portefeuille (TICKER montant €)", height=200)
     user_portfolio = {}
     if raw.strip():

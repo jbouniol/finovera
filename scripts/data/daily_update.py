@@ -1,3 +1,24 @@
+"""
+daily_update.py – Mise à jour automatique des données marché et news pour Finovera
+===================================================================================
+
+Ce module gère la récupération quotidienne des données boursières et des actualités financières
+pour chaque ticker suivi par l’application. Les données sont enrichies par l’analyse de sentiment
+des titres de news. Les résultats sont sauvegardés dans deux fichiers : le dataset final (actions)
+et un historique des news scorées.
+
+Principales étapes :
+- Téléchargement incrémental des prix et volumes avec yfinance
+- Récupération des news récentes et scoring sentiment avec Vader
+- Fusion, agrégation et sauvegarde des résultats
+- Affichage en temps réel de l’avancement via Streamlit
+
+Entrées : fichiers CSV existants (données marché, news)
+Sorties : CSV mis à jour (final_dataset.csv, news_data.csv), feedback Streamlit
+
+Dernière mise à jour : 2025-05-14
+"""
+
 import pandas as pd
 import yfinance as yf
 from newsapi import NewsApiClient
@@ -7,7 +28,7 @@ import os
 import traceback
 import streamlit as st
 
-# === CONFIG ===
+# === CONFIGURATION API ET CHEMINS ===
 NEWS_API_KEY = "REDACTED_API_KEY"
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
@@ -17,6 +38,17 @@ FINAL_DATASET = DATA_PATH + "final_dataset.csv"
 NEWS_DATA = DATA_PATH + "news_data.csv"
 
 def daily_update():
+    """
+    Met à jour le dataset actions et le fichier news_data.csv pour tous les tickers suivis.
+    Récupère les nouvelles données boursières manquantes et les dernières news pour chaque ticker.
+    Analyse le sentiment des titres de news et fusionne le tout dans les fichiers finaux.
+    Affiche l’avancement et les logs via Streamlit.
+
+    - Récupère les nouveaux jours de marché manquants pour chaque ticker via yfinance
+    - Pour chaque ticker, agrège les dernières news sur 7 jours glissants, calcule un score sentiment moyen par jour
+    - Fusionne et sauvegarde les résultats dans les CSV du projet
+    - Affiche l’avancement dans l’UI
+    """
     try:
         df_final = pd.read_csv(FINAL_DATASET)
         df_final["Date"] = pd.to_datetime(df_final["Date"])
@@ -46,6 +78,7 @@ def daily_update():
             try:
                 st.write(f"\n🔄 Mise à jour de {ticker}...")
 
+                # 1. Recherche du dernier jour connu pour ce ticker
                 last_date = df_final[df_final["Ticker"] == ticker]["Date"].max().date()
                 start_date = last_date + datetime.timedelta(days=1)
                 if start_date >= today:
@@ -53,18 +86,19 @@ def daily_update():
                     progress.progress((i + 1) / len(all_tickers))
                     continue
 
+                # 2. Téléchargement des données boursières manquantes via yfinance
                 df_raw = yf.download(ticker, start=start_date.isoformat(), end=today.isoformat())
-
                 if df_raw.empty:
                     st.warning(f"❌ Aucune nouvelle donnée boursière pour {ticker}")
                     progress.progress((i + 1) / len(all_tickers))
                     continue
 
                 df_raw.reset_index(inplace=True)
-
                 if isinstance(df_raw.columns, pd.MultiIndex):
+                    # Aplatit MultiIndex si besoin
                     df_raw.columns = [col[0] if col[1] == '' else f"{col[0]}_{col[1]}" for col in df_raw.columns]
 
+                # 3. Construction DataFrame des nouveaux jours
                 df_stock = pd.DataFrame({
                     "Date": pd.to_datetime(df_raw["Date"]),
                     "Ticker": ticker,
@@ -81,13 +115,12 @@ def daily_update():
                 df_stock["variation_pct"] = (df_stock["next_close"] - df_stock["Close"]) / df_stock["Close"]
 
                 last_downloaded_date = df_stock["Date"].max().date()
-
                 if last_downloaded_date == datetime.date.today():
                     print(f"✅ Données du jour {last_downloaded_date} bien présentes.")
                 else:
                     print(f"⚠️ Dernière donnée pour {ticker} : {last_downloaded_date} (pas encore aujourd’hui).")
 
-
+                # 4. Récupération des news des 7 derniers jours
                 try:
                     news = newsapi.get_everything(
                         q=ticker,
@@ -105,6 +138,7 @@ def daily_update():
                     else:
                         raise e
 
+                # 5. Calcul du score de sentiment sur les titres des news
                 df_n = pd.DataFrame([{
                     "ticker": ticker,
                     "title": a["title"],
@@ -119,23 +153,24 @@ def daily_update():
                     df_n["date"] = pd.to_datetime(df_n["date"])
                     new_news.append(df_n)
 
-                    # 1. Sentiment moyen par jour
+                    # 6. Moyenne journalière du sentiment pour chaque jour avec news
                     df_sentiment = df_n.groupby("date")["sentiment"].mean().reset_index()
                     df_sentiment.rename(columns={"date": "Date"}, inplace=True)
                     df_sentiment["Ticker"] = ticker
 
-                    # 2. Étendre les jours boursiers
+                    # 7. Étend le score sentiment à tous les jours boursiers, remplit les jours sans news par 0
                     all_dates = df_stock["Date"].unique()
                     df_sentiment = df_sentiment.set_index("Date").reindex(all_dates).fillna(0.0).reset_index()
                     df_sentiment["Ticker"] = ticker
 
-                    # 3. Fusion complète
+                    # 8. Fusionne prix + sentiment pour chaque jour boursier
                     df_merged = pd.merge(df_stock, df_sentiment, on=["Date", "Ticker"], how="left")
 
                 else:
                     df_merged = df_stock.copy()
                     df_merged["sentiment"] = 0
 
+                # 9. Préparation du dataframe final pour ce ticker
                 df_merged = df_merged[["Date", "Ticker", "sentiment", "variation_pct", "Open", "Close", "High", "Low", "Volume"]]
                 df_merged.dropna(subset=["variation_pct"], inplace=True)
 
@@ -153,21 +188,20 @@ def daily_update():
 
             progress.progress((i + 1) / len(all_tickers))
 
+    # 10. Sauvegarde des nouvelles données marché
     if all_updates:
         df_new = pd.concat(all_updates, ignore_index=True)
         df_full = pd.concat([df_final, df_new], ignore_index=True)
-
-        # Supprimer les doublons
         df_full.drop_duplicates(subset=["Date", "Ticker"], keep="last", inplace=True)
 
-        # Garder uniquement les 365 derniers jours pour chaque ticker
+        # Garder uniquement les 30 derniers jours (rolling window)
         rolling_cutoff = df_full["Date"].max() - pd.Timedelta(days=30)
         df_full = df_full[df_full["Date"] >= rolling_cutoff]
 
         df_full.to_csv(FINAL_DATASET, index=False)
-
         st.success(f"💾 final_dataset.csv mis à jour avec {len(df_new)} nouvelles lignes")
 
+    # 11. Sauvegarde des news enrichies
     if new_news:
         df_new_news = pd.concat(new_news, ignore_index=True)
         df_all_news = pd.concat([df_news, df_new_news], ignore_index=True)

@@ -1,10 +1,37 @@
+"""
+switch_theme.py — Sélecteur de thème pour l’application Finovera (mode terminal)
+================================================================================
+
+Script utilitaire pour changer rapidement le thème visuel de Streamlit en ligne de commande.
+- Affiche un menu interactif pour appliquer l’un des trois thèmes Streamlit disponibles
+- Copie le fichier de configuration .toml correspondant dans le dossier .streamlit
+- Utilise des codes couleurs ANSI pour le terminal
+- Utile pour développement, tests UX ou personnalisation rapide avant déploiement
+
+Entrées : aucune (lancement interactif)
+Sorties : fichier .streamlit/config.toml modifié
+
+Dernière mise à jour : 2025-05-14
+"""
+
 import shutil
 import os
 
 def color(text, code):
+    """
+    Renvoie une chaîne colorée pour le terminal (code ANSI).
+    Args :
+        text (str) : texte à afficher
+        code (str) : code couleur/style ANSI
+    Returns :
+        (str) : texte formaté couleur terminal
+    """
     return f"\033[{code}m{text}\033[0m"
 
 def banner():
+    """
+    Affiche la bannière du sélecteur de thème dans le terminal.
+    """
     print(color("\n🎨 FinoVera Theme Switcher", "1;32"))
     print(color("-" * 32, "90"))
     print("1. 🌙 Thème sombre")
@@ -14,6 +41,7 @@ def banner():
 
 banner()
 
+# Saisie utilisateur pour le choix du thème
 choice = input(color("Choisissez une option (1/2/3/0) : ", "1;36")).strip()
 
 if choice == "1":
