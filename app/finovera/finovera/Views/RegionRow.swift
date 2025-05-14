@@ -14,7 +14,7 @@ struct RegionRow: View {
     var body: some View {
         HStack {
             Text(region.flag)
-            Text(region.title).fontWeight(.semibold)
+            Text(region.name).fontWeight(.semibold)
             Spacer()
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .foregroundColor(Color("Accent"))     // violet

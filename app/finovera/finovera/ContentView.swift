@@ -27,6 +27,11 @@ struct ContentView: View {
                     Label("Accueil", systemImage: "house.fill")
                 }
             
+            TickersView()
+                .tabItem {
+                    Label("Tickers", systemImage: "list.bullet")
+                }
+            
             PortfolioView()
                 .tabItem {
                     Label("Portfolio", systemImage: "chart.pie.fill")
@@ -53,31 +58,119 @@ struct ContentView: View {
 // Définition temporaire de SettingsView, à déplacer dans un fichier séparé
 struct SettingsView: View {
     @AppStorage("apiBaseURL") private var apiBaseURL: String = ""
+    @AppStorage("useMockData") private var useMockData: Bool = false
     @State private var tempAPIURL: String = ""
     @State private var showSaveConfirmation = false
     @Environment(\.dismiss) private var dismiss
+    
+    // Variable pour désactiver l'affichage du mode démo dans les paramètres
+    // Mettre à true pour les présentations
+    private let hideDemoIndicator = false
     
     var body: some View {
         NavigationStack {
             Form {
                 Section(header: Text("Configuration API")) {
-                    TextField("URL du serveur API", text: $tempAPIURL)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("URL du serveur")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Adresse API", text: $tempAPIURL)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .cornerRadius(8)
+                    }
+                    .padding(.vertical, 4)
                     
-                    Button("Réinitialiser aux valeurs par défaut") {
+                    Button(action: {
                         tempAPIURL = ""
                         saveSettings()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Réinitialiser")
+                        }
+                        .foregroundColor(.red)
+                        .padding(.vertical, 8)
                     }
-                    .foregroundColor(.red)
+                }
+                
+                // Section de mode démo pour les démonstrations
+                Section(header: Text("Mode Démonstration")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Utiliser les données simulées", isOn: $useMockData)
+                            .tint(Color("Accent"))
+                            .onChange(of: useMockData) { oldValue, newValue in
+                                APIService.useMockDataOverride = newValue
+                            }
+                        
+                        if useMockData {
+                            HStack {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                Text("Les données affichées sont simulées pour la démonstration")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                
+                Section(header: Text("État de la connexion")) {
+                    #if DEBUG
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("URL actuelle:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(APIService.customBaseURL?.absoluteString ?? APIService.baseURL.absoluteString)
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .cornerRadius(6)
+                    }
+                    #endif
+                    
+                    Button(action: {
+                        testAPIConnection()
+                    }) {
+                        HStack {
+                            Image(systemName: "network")
+                            Text("Tester la connexion")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color("Accent"))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.vertical, 8)
                 }
                 
                 Section(header: Text("Informations")) {
-                    Text("Finovera v1.0")
-                        .font(.caption)
-                    Text("© 2025 Jonathan Bouniol")
-                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image("FinoveraLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 24)
+                            Spacer()
+                            Text("Finovera v1.0")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("© 2025 Jonathan Bouniol")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle("Paramètres")
@@ -101,6 +194,7 @@ struct SettingsView: View {
             }
             .onAppear {
                 tempAPIURL = apiBaseURL
+                APIService.useMockDataOverride = useMockData
             }
         }
     }
@@ -117,6 +211,39 @@ struct SettingsView: View {
         
         withAnimation {
             showSaveConfirmation = true
+        }
+    }
+    
+    private func testAPIConnection() {
+        Task {
+            do {
+                // Try to fetch available metadata as a simple connectivity test
+                let _ = try await APIService.fetchAvailableMetadata()
+                
+                // Show success alert
+                let alertController = UIAlertController(
+                    title: "Connection Successful",
+                    message: "Successfully connected to the API server.",
+                    preferredStyle: .alert
+                )
+                alertController.addAction(UIAlertAction(title: "OK", style: .default))
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let rootVC = scene.windows.first?.rootViewController {
+                    rootVC.present(alertController, animated: true)
+                }
+            } catch {
+                // Show error alert
+                let alertController = UIAlertController(
+                    title: "Connection Failed",
+                    message: "Could not connect to the API server: \(error.localizedDescription)",
+                    preferredStyle: .alert
+                )
+                alertController.addAction(UIAlertAction(title: "OK", style: .default))
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let rootVC = scene.windows.first?.rootViewController {
+                    rootVC.present(alertController, animated: true)
+                }
+            }
         }
     }
 }

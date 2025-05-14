@@ -16,8 +16,16 @@ final class PortfolioViewModel: ObservableObject {
     @Published var showMockAlert = false
     @Published var userTickers: String = ""
     @Published var selectedRisk: String = "balanced"
-    @Published var selectedRegions: [String] = ["US"]
+    @Published var selectedRegions: [String] = ["United States"]
     @Published var selectedSectors: [String] = ["Technology"]
+    
+    // Définir les options disponibles pour les filtres
+    let availableRegions = ["United States", "France", "Germany", "United Kingdom", "Switzerland", "Netherlands", 
+                           "Italy", "Spain", "China", "Japan", "South Korea", "Taiwan", "Hong Kong"]
+    
+    let availableSectors = ["Technology", "Financial Services", "Healthcare", "Consumer Cyclical", 
+                           "Communication Services", "Industrials", "Consumer Defensive", "Energy", 
+                           "Basic Materials", "Real Estate", "Utilities", "Automotive"]
     
     // Chargement du portefeuille
     func loadPortfolio() {
@@ -35,10 +43,9 @@ final class PortfolioViewModel: ObservableObject {
                 if tickers.isEmpty {
                     // S'il n'y a pas de tickers, on charge les recommandations générales
                     portfolio = try await APIService.fetchRecommendations(
-                        risk: selectedRisk,
                         regions: selectedRegions,
                         sectors: selectedSectors,
-                        capital: 10000
+                        allocationAmount: 10000
                     )
                 } else {
                     // Sinon, on charge les informations spécifiques pour ces tickers
@@ -46,6 +53,9 @@ final class PortfolioViewModel: ObservableObject {
                     portfolio = Recommendation.mockPortfolio
                     showMockAlert = true
                 }
+                
+                // Trier les résultats par priorité d'action puis par score
+                portfolio.sort(by: Recommendation.sortByPriorityAndScore)
                 
                 // Charger les nouvelles pour le premier ticker
                 if let firstTicker = portfolio.first {
@@ -70,6 +80,37 @@ final class PortfolioViewModel: ObservableObject {
             }
         }
     }
+    
+    // Méthodes pour gérer les filtres
+    func toggleRegion(_ region: String) {
+        if selectedRegions.contains(region) {
+            selectedRegions.removeAll { $0 == region }
+        } else {
+            selectedRegions.append(region)
+        }
+        loadPortfolio()
+    }
+    
+    func toggleSector(_ sector: String) {
+        if selectedSectors.contains(sector) {
+            selectedSectors.removeAll { $0 == sector }
+        } else {
+            selectedSectors.append(sector)
+        }
+        loadPortfolio()
+    }
+    
+    func setRisk(_ risk: String) {
+        selectedRisk = risk
+        loadPortfolio()
+    }
+    
+    func resetFilters() {
+        selectedRisk = "balanced"
+        selectedRegions = ["United States"]
+        selectedSectors = ["Technology"]
+        loadPortfolio()
+    }
 }
 
 struct PortfolioView: View {
@@ -77,6 +118,7 @@ struct PortfolioView: View {
     @State private var showRiskPicker = false
     @State private var showRegionPicker = false
     @State private var showSectorPicker = false
+    @AppStorage("useMockData") private var useMockData: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -146,10 +188,7 @@ struct PortfolioView: View {
                 Spacer()
                 Button {
                     withAnimation {
-                        vm.selectedRisk = "balanced"
-                        vm.selectedRegions = ["US"]
-                        vm.selectedSectors = ["Technology"]
-                        vm.loadPortfolio()
+                        vm.resetFilters()
                     }
                 } label: {
                     Label("Réinitialiser", systemImage: "arrow.uturn.backward")
@@ -315,11 +354,12 @@ struct PortfolioView: View {
                         
                         VStack(alignment: .trailing, spacing: 4) {
                             HStack {
-                                Text("Score: ")
+                                Text(rec.qualityBadge)
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(rec.qualityColor)
                                 Text("\(Int(rec.score * 100))")
                                     .font(.headline)
+                                    .foregroundColor(scoreColor(for: rec.score))
                             }
                             
                             Text(rec.recommendedAction)
@@ -327,9 +367,14 @@ struct PortfolioView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
-                                    rec.recommendedAction == "Renforcer" ? Color.green.opacity(0.2) :
+                                    rec.recommendedAction == "Renforcer" || rec.recommendedAction == "Acheter" ? Color.green.opacity(0.2) :
                                     rec.recommendedAction == "Garder" ? Color.yellow.opacity(0.2) :
                                     Color.red.opacity(0.2)
+                                )
+                                .foregroundColor(
+                                    rec.recommendedAction == "Renforcer" || rec.recommendedAction == "Acheter" ? Color.green :
+                                    rec.recommendedAction == "Garder" ? Color.orange :
+                                    Color.red
                                 )
                                 .clipShape(Capsule())
                         }
@@ -367,6 +412,11 @@ struct PortfolioView: View {
                                     rec.sentimentLabel == "Neutre" ? Color.gray.opacity(0.2) :
                                     Color.red.opacity(0.2)
                                 )
+                                .foregroundColor(
+                                    rec.sentimentLabel.contains("positif") ? Color.green :
+                                    rec.sentimentLabel == "Neutre" ? Color.gray :
+                                    Color.red
+                                )
                                 .clipShape(Capsule())
                         }
                         
@@ -385,6 +435,8 @@ struct PortfolioView: View {
                 }
                 .background(Color("CardBG"))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                .padding(.vertical, 4)
             }
         }
     }
@@ -433,9 +485,8 @@ struct PortfolioView: View {
             
             ForEach(["conservative", "balanced", "aggressive"], id: \.self) { risk in
                 Button {
-                    vm.selectedRisk = risk
+                    vm.setRisk(risk)
                     showRiskPicker = false
-                    vm.loadPortfolio()
                 } label: {
                     HStack {
                         Text(risk.capitalized)
@@ -468,13 +519,9 @@ struct PortfolioView: View {
             
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(["US", "Europe", "Asia", "Global"], id: \.self) { region in
+                    ForEach(vm.availableRegions, id: \.self) { region in
                         Button {
-                            if vm.selectedRegions.contains(region) {
-                                vm.selectedRegions.removeAll { $0 == region }
-                            } else {
-                                vm.selectedRegions.append(region)
-                            }
+                            vm.toggleRegion(region)
                         } label: {
                             HStack {
                                 Text(region)
@@ -496,7 +543,6 @@ struct PortfolioView: View {
             
             Button {
                 showRegionPicker = false
-                vm.loadPortfolio()
             } label: {
                 Text("Appliquer")
                     .frame(maxWidth: .infinity)
@@ -519,13 +565,9 @@ struct PortfolioView: View {
             
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(["Technology", "Healthcare", "Finance", "Energy", "Consumer", "Industrial"], id: \.self) { sector in
+                    ForEach(vm.availableSectors, id: \.self) { sector in
                         Button {
-                            if vm.selectedSectors.contains(sector) {
-                                vm.selectedSectors.removeAll { $0 == sector }
-                            } else {
-                                vm.selectedSectors.append(sector)
-                            }
+                            vm.toggleSector(sector)
                         } label: {
                             HStack {
                                 Text(sector)
@@ -547,7 +589,6 @@ struct PortfolioView: View {
             
             Button {
                 showSectorPicker = false
-                vm.loadPortfolio()
             } label: {
                 Text("Appliquer")
                     .frame(maxWidth: .infinity)
@@ -562,6 +603,21 @@ struct PortfolioView: View {
     }
 }
 
+// Ajout d'une fonction utilitaire
+extension PortfolioView {
+    func scoreColor(for score: Double) -> Color {
+        if score >= 0.8 {
+            return .green
+        } else if score >= 0.6 {
+            return .blue
+        } else if score >= 0.4 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+}
+
 #Preview {
     PortfolioView()
-} 
+}
