@@ -15,8 +15,7 @@ Tu peux retrouver l'ensemble des datasets ici :
 ## Slides du projet
 
 Tu peux consulter la présentation complète du projet ici :
-📑 [Slides – Finovera]([https://docs.google.com/presentation/d/1A2B3C4D5E6F7G8H9I0J/edit?usp=sharing](https://www.canva.com/design/DAGm9bup1tc/rjDPjCaAjYsNOY5MUVb70A/view?utm_content=DAGm9bup1tc&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hccc8e010cd))
-
+📑 [Slides – Finovera](https://www.canva.com/design/DAGm9bup1tc/rjDPjCaAjYsNOY5MUVb70A/view?utm_content=DAGm9bup1tc&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hccc8e010cd)
 ---
 
 ### 1. Type de données, méthodes employées, sources et objectif (8 points)
