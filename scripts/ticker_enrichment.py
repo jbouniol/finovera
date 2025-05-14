@@ -1,3 +1,20 @@
+"""
+ticker_enrichment.py — Enrichissement dynamique des tickers pour Finovera
+=========================================================================
+Ce module gère l’enrichissement à la volée d’un ou plusieurs nouveaux tickers :
+- Téléchargement des données marché récentes (cours, volumes) via yfinance
+- Récupération de news financières récentes (NewsAPI) et scoring de sentiment
+- Agrégation journalière des scores de sentiment
+- Fusion, alignement et jointure du nouveau ticker dans le dataset principal
+- Enrichissement/mise à jour automatique des métadonnées (secteur, pays)
+- Ajout des nouvelles données dans final_dataset.csv et news_data.csv
+
+Entrée : liste de tickers à enrichir
+Sorties : datasets et métadonnées mis à jour
+
+Dernière mise à jour : 2025-05-14
+"""
+
 import yfinance as yf
 import streamlit as st
 from newsapi import NewsApiClient
@@ -12,26 +29,43 @@ import matplotlib.pyplot as plt
 import pydeck as pdk
 import traceback
 
-
-# NewsAPI config
+# === CONFIGURATION APIs ===
 NEWS_API_KEY = "2c451b6b24244a43b63c96cbf49ac7a7"
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
 
-def enrich_and_update_tickers(tickers_to_add,
-                               dataset_path="data/final_dataset.csv",
-                               stock_base_path="data/stock_data_clean.csv",
-                               news_base_path="data/news_data.csv"):
+def enrich_and_update_tickers(
+        tickers_to_add,
+        dataset_path="data/final_dataset.csv",
+        stock_base_path="data/stock_data_clean.csv",
+        news_base_path="data/news_data.csv"):
+    """
+    Enrichit le dataset principal avec de nouveaux tickers :
+    - Télécharge et nettoie les cours et volumes (2 mois glissants)
+    - Récupère et agrège le sentiment via NewsAPI + Vader
+    - Impute les valeurs manquantes
+    - Met à jour les métadonnées
+    - Fusionne les nouveaux tickers au dataset existant
+    
+    Args :
+        tickers_to_add (list[str])    : tickers à ajouter
+        dataset_path (str)            : chemin du dataset final actions
+        stock_base_path (str)         : chemin base brute marché (optionnel)
+        news_base_path (str)          : chemin base brute news (optionnel)
+    Returns :
+        df_new_final (pd.DataFrame)   : DataFrame des nouvelles lignes ajoutées
+    """
     if not tickers_to_add:
         return None
 
-    # Chargement des bases existantes
+    # Chargement du dataset actions existant (ou initialisation)
     try:
         df_final_existing = pd.read_csv(dataset_path)
         df_final_existing["Date"] = pd.to_datetime(df_final_existing["Date"])
     except FileNotFoundError:
         df_final_existing = pd.DataFrame()
 
+    # Chargement du dataset news existant (ou initialisation)
     try:
         df_news_existing = pd.read_csv(news_base_path)
     except FileNotFoundError:
@@ -44,14 +78,13 @@ def enrich_and_update_tickers(tickers_to_add,
         try:
             st.info(f"\U0001F4E1 Téléchargement des données pour {ticker}...")
 
-            # === 1. Données boursières ===
+            # === 1. Données marché via yfinance ===
             stock_df = yf.download(ticker, period="2mo")
             if stock_df.empty:
                 st.error(f"❌ Pas de données boursières pour {ticker}")
                 continue
 
             stock_df.reset_index(inplace=True)
-
             # Flatten si MultiIndex
             if isinstance(stock_df.columns, pd.MultiIndex):
                 stock_df.columns = [col[0] if col[1] == '' else f"{col[0]}_{col[1]}" for col in stock_df.columns]
@@ -63,7 +96,7 @@ def enrich_and_update_tickers(tickers_to_add,
                 st.error(f"❌ Colonnes manquantes pour {ticker} : {missing_cols}")
                 continue
 
-            # Reconstruction tidy
+            # Reformatage propre (tidy)
             df_tidy = pd.DataFrame({
                 "Date": pd.to_datetime(stock_df["Date"]),
                 "Ticker": ticker,
@@ -75,7 +108,7 @@ def enrich_and_update_tickers(tickers_to_add,
             })
             df_tidy.dropna(subset=["Close"], inplace=True)
 
-            # === 2. News & Sentiment ===
+            # === 2. News & Sentiment (NewsAPI + Vader) ===
             today = datetime.date.today()
             last_week = today - datetime.timedelta(days=7)
             news = newsapi.get_everything(
@@ -116,27 +149,22 @@ def enrich_and_update_tickers(tickers_to_add,
             df_sentiment.rename(columns={"date": "Date"}, inplace=True)
             df_sentiment["Ticker"] = ticker
 
-            # Étendre les sentiments à tous les jours présents dans le marché
+            # Aligne les jours de marché et impute le sentiment
             dates_market = df_tidy["Date"].drop_duplicates().sort_values()
             df_sentiment = df_sentiment.set_index("Date").reindex(dates_market)
-
-            # Impute les valeurs manquantes en utilisant une interpolation douce
             df_sentiment["sentiment"] = (
                 df_sentiment["sentiment"]
-                .fillna(method="ffill")  # remplit en avant
-                .fillna(method="bfill")  # remplit en arrière si besoin
+                .fillna(method="ffill")
+                .fillna(method="bfill")
             )
-
             df_sentiment.reset_index(inplace=True)
             df_sentiment.rename(columns={"index": "Date"}, inplace=True)
             df_sentiment["Ticker"] = ticker
 
-
-            # === 4. Merge avec données marché ===
+            # === 4. Fusion marché + sentiment ===
             df_tidy = df_tidy.sort_values(by=["Ticker", "Date"])
             df_tidy["next_close"] = df_tidy.groupby("Ticker")["Close"].shift(-1)
             df_tidy["variation_pct"] = (df_tidy["next_close"] - df_tidy["Close"]) / df_tidy["Close"]
-
             df_merged = pd.merge(df_tidy, df_sentiment, on=["Date", "Ticker"], how="left")
             df_merged = df_merged[["Date", "Ticker", "sentiment", "variation_pct", "Open", "Close", "High", "Low", "Volume"]]
             df_merged.dropna(subset=["sentiment", "variation_pct"], inplace=True)
@@ -173,13 +201,13 @@ def enrich_and_update_tickers(tickers_to_add,
             except Exception as e:
                 st.warning(f"⚠️ Impossible d’écrire dans tickers_metadata.py : {e}")
 
-
             all_final.append(df_merged)
 
         except Exception as e:
             st.error(f"❌ Erreur pour {ticker} : {e}")
             st.text(traceback.format_exc())
 
+    # Ajout des nouvelles données au dataset principal
     if all_final:
         df_new_final = pd.concat(all_final, ignore_index=True)
         df_updated = pd.concat([df_final_existing, df_new_final], ignore_index=True)
@@ -188,6 +216,7 @@ def enrich_and_update_tickers(tickers_to_add,
     else:
         df_new_final = None
 
+    # Ajout des news au dataset de news
     if all_news:
         df_new_news = pd.concat(all_news, ignore_index=True)
         df_news_combined = pd.concat([df_news_existing, df_new_news], ignore_index=True)
