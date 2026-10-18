@@ -22,9 +22,10 @@ Dernière mise à jour : 2025-05-14
 import pandas as pd
 import datetime
 from fredapi import Fred
+import os
 
 # === CONFIGURATION API ET VARIABLES ===
-FRED_API_KEY = "REDACTED_API_KEY"  # Remplace par ta vraie clé API FRED
+FRED_API_KEY = os.getenv("FRED_API_KEY", "")
 fred = Fred(api_key=FRED_API_KEY)
 
 # Indicateurs macro à importer : {FRED code : nom colonne dans le CSV final}

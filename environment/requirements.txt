@@ -17,7 +17,7 @@ vaderSentiment
 # Web app
 streamlit
 
-# Optional (pour visualisation avancée ou stockage)
+# Optional (pour visualisation avancée et ML)
 plotly
 joblib
 

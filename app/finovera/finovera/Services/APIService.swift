@@ -25,7 +25,7 @@ class APIService {
     
     // Base URLs
     static let baseURLForRelease = URL(string: "https://finovera-api.vercel.app/api")!
-    static let baseURLForDebug = URL(string: "http://localhost:5000/api")!
+    static let baseURLForDebug = URL(string: "http://127.0.0.1:8000")!
     
     // Static properties
     static var customBaseURL: URL?
@@ -82,7 +82,7 @@ class APIService {
         var components = URLComponents(url: baseURL.appendingPathComponent("recommendations"),
                                        resolvingAgainstBaseURL: false)!
         components.queryItems = [
-            .init(name: "risk", value: "high"),
+            .init(name: "risk", value: "aggressive"),
             .init(name: "capital", value: String(Int(allocationAmount * 100))) // Conversion en entier représentant le pourcentage
         ]
         if !regions.isEmpty {
@@ -124,6 +124,7 @@ class APIService {
         
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode([Article].self, from: data)
     }
     

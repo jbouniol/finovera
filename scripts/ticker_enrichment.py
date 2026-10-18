@@ -30,7 +30,7 @@ import pydeck as pdk
 import traceback
 
 # === CONFIGURATION APIs ===
-NEWS_API_KEY = "REDACTED_API_KEY"
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
 

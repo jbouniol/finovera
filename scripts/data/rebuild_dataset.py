@@ -26,7 +26,7 @@ from datetime import datetime, timedelta
 import os
 
 # === CONFIGURATION API & PATHS ===
-NEWS_API_KEY = "REDACTED_API_KEY"  # Remplace par ta vraie clé
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
 

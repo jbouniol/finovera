@@ -81,15 +81,15 @@ class ModelManager:
         # Features de base
         features = []
         
+        # Sentiment
+        if 'sentiment' in data.columns:
+            features.append(data['sentiment'].values)
+            
         # Prix et volume
         if 'Close' in data.columns:
             features.append(data['Close'].values)
         if 'Volume' in data.columns:
             features.append(data['Volume'].values)
-            
-        # Sentiment
-        if 'sentiment' in data.columns:
-            features.append(data['sentiment'].values)
             
         # Si pas assez de features, ajouter des zéros
         while len(features) < 3:

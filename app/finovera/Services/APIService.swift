@@ -1,7 +1,7 @@
 import Foundation
 
 class APIService {  
-    private let baseURL = "http://172.16.29.129:8000" 
+    private let baseURL = "http://127.0.0.1:8000" 
     
     func fetchRecommendations(risk: String, capital: Double) async throws -> [Recommendation] {
         let urlString = "\(baseURL)/recommendations?risk=\(risk)&capital=\(capital)"

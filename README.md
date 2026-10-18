@@ -1,44 +1,39 @@
-# finovera
+# Finovera
 
-**Finovera** est une application intelligente qui recommande un portefeuille d’actions personnalisé en fonction du profil de chaque investisseur.
-Grâce à un **AI-Agent**, l’utilisateur bénéficie de recommandations financières sur mesure, basées sur une analyse combinant données de marché, théorie moderne du portefeuille et préférences personnelles (aversion au risque, objectifs de rendement, horizon d’investissement, etc.).
+Finovera is an intelligent investment recommendation platform combining a Machine Learning pipeline, a robust FastAPI backend, a Streamlit dashboard, and a modern iOS SwiftUI application.
 
----
+## Architecture
 
-## Ressources du projet
+- **Machine Learning Pipeline**: Retrieves financial data, enriches it with macro-economic indicators and news sentiment (Vader Sentiment), and runs recommendation models (Random Forest / XGBoost).
+- **Backend**: A FastAPI server handling recommendation logic, serving the ML models, and providing REST endpoints for the frontend applications.
+- **Dashboard**: A Streamlit application for data exploration, model training evaluation, and administrative tasks.
+- **iOS App**: A native SwiftUI application for end-users to receive personalized investment recommendations based on their risk profile.
 
-Tu peux retrouver l'ensemble des datasets ici :
-📁 [Google Drive – Dossier Finovera](https://drive.google.com/drive/u/0/folders/1PNcL4oUCxw4gNcUsCxsghxd8MGpYGiTq)
+## Installation & Setup
 
----
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/jbouniol/finovera.git
+   cd finovera
+   ```
 
-## Slides du projet
+2. **Environment Variables**:
+   Create a `.env` file at the root of the project with your API keys (see `.env.example`):
+   ```env
+   NEWS_API_KEY=your_news_api_key_here
+   FRED_API_KEY=your_fred_api_key_here
+   ```
 
-Tu peux consulter la présentation complète du projet ici :
-📑 [Slides – Finovera](https://www.canva.com/design/DAGm9bup1tc/rjDPjCaAjYsNOY5MUVb70A/view?utm_content=DAGm9bup1tc&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hccc8e010cd)
+3. **Backend Setup**:
+   ```bash
+   pip install -r app/finovera/Backend/requirements.txt
+   cd app/finovera/Backend
+   uvicorn app:app --reload
+   ```
 
----
+4. **iOS App Setup**:
+   Open `app/finovera/finovera.xcodeproj` in Xcode, ensure you are targeting a simulator or your device, and hit **Run**.
 
-### 1. Type de données, méthodes employées, sources et objectif (8 points)
+## License
 
-Nous utilisons deux types principaux de données :
-- Données financières historiques : prix d’ouverture, de fermeture, plus haut, plus bas, volume, variation quotidienne (%) pour des actions ou ETF. Ces données sont collectées via l’API Yahoo Finance à l’aide du package Python yfinance.
-- Actualités financières : titres et dates d’articles de presse en lien avec chaque ticker, provenant de l’API NewsAPI. Chaque titre est analysé à l’aide du modèle VADER (analyse lexicale de sentiment) pour produire un score de sentiment journalier par actif.
-
-*Objectif :* croiser ces deux sources pour construire un indicateur de recommandation quotidien pour chaque actif financier, en tenant compte à la fois du contexte de marché et de l’opinion des médias.
-
-*Méthodes :*
-- Fusion temporelle des données boursières et des scores de sentiment.
-- Nettoyage et traitement pour gérer les valeurs manquantes (forward/backward fill, exclusion des lignes incomplètes).
-- Enrichissement automatique des tickers avec métadonnées (secteur, pays) via yfinance et règles manuelles pour les ETF.
-- Sauvegarde continue des données (final_dataset.csv et news_data.csv) pour exploitation dans l’application Streamlit.
-
----
-
-### 2. Méthodes de machine learning utilisées et justification (6 points)
-
-Nous avons testé plusieurs modèles de classification pour prédire la variation journalière d’un actif à partir du score de sentiment et d’autres variables (prix, volume) :
-- Random Forest (choix final) : sélectionné pour sa robustesse aux valeurs manquantes et aux corrélations non linéaires, ainsi que pour son interprétabilité.
-- Autres modèles testés : LogisticRegression (sensibilité aux NaN), XGBoost (performant mais plus coûteux en calcul), et une version préliminaire de LSTM (non retenue car trop complexe pour les données disponibles).
-
-Le modèle est entraîné à chaque lancement en fonction des filtres de l’utilisateur (secteur, région) pour produire des scores de probabilité d’évolution positive. Les 5 actifs avec les scores les plus élevés sont recommandés à l’achat chaque jour.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

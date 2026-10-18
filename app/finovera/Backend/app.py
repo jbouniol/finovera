@@ -26,9 +26,10 @@ import traceback
 load_dotenv()
 
 # Configuration
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "REDACTED_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
+TICKERS_METADATA = {}
 
 app = FastAPI(title="Finovera Reco API", version="1.0")
 
@@ -186,21 +187,9 @@ def enrich_ticker(symbol: str) -> bool:
             "sector": info.get("sector", "Unknown")
         }
 
-        # Sauvegarder dans tickers_metadata.py
-        metadata_path = "tickers_metadata.py"
-        try:
-            with open(metadata_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            # Vérifier si le ticker existe déjà
-            if f'"ticker": "{symbol}"' not in content:
-                insertion = f'    {{ "ticker": "{symbol}", "name": "{metadata["name"]}", "country": "{metadata["country"]}", "sector": "{metadata["sector"]}" }},\n'
-                content = content.replace("tickers_metadata = [", "tickers_metadata = [\n" + insertion)
-                with open(metadata_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                print(f"✅ Métadonnées ajoutées pour {symbol}")
-        except Exception as e:
-            print(f"⚠️ Erreur lors de la sauvegarde des métadonnées: {e}")
+        # Sauvegarder dans TICKERS_METADATA en mémoire
+        TICKERS_METADATA[symbol] = metadata
+        print(f"✅ Métadonnées ajoutées pour {symbol} en mémoire")
 
         return True
 

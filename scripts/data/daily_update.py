@@ -29,7 +29,7 @@ import traceback
 import streamlit as st
 
 # === CONFIGURATION API ET CHEMINS ===
-NEWS_API_KEY = "REDACTED_API_KEY"
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 analyzer = SentimentIntensityAnalyzer()
 
