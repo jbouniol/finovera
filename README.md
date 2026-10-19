@@ -6,8 +6,8 @@ Finovera is an intelligent investment recommendation platform combining a Machin
 
 - **Machine Learning Pipeline**: Retrieves financial data, enriches it with macro-economic indicators and news sentiment (Vader Sentiment), and runs recommendation models (Random Forest / XGBoost).
 - **Backend**: A FastAPI server handling recommendation logic, serving the ML models, and providing REST endpoints for the frontend applications.
-- **Dashboard**: A Streamlit application for data exploration, model training evaluation, and administrative tasks.
-- **iOS App**: A native SwiftUI application for end-users to receive personalized investment recommendations based on their risk profile.
+- **Dashboard**: A Streamlit application for data exploration, model training evaluation (using robust temporal out-of-sample chronological validation for 100% leak-free metrics), and administrative tasks.
+- **iOS App**: A native SwiftUI application for end-users to receive personalized investment recommendations based on their risk profile, featuring dynamic portfolio allocation driven in real-time by the selected target capital and tracked user tickers.
 
 ## Installation & Setup
 

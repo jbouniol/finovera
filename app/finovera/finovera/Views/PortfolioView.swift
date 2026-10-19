@@ -18,6 +18,7 @@ final class PortfolioViewModel: ObservableObject {
     @Published var selectedRisk: String = "balanced"
     @Published var selectedRegions: [String] = ["United States"]
     @Published var selectedSectors: [String] = ["Technology"]
+    @AppStorage("capitalTarget") var capitalTarget: Double = 10000
     
     // Définir les options disponibles pour les filtres
     let availableRegions = ["United States", "France", "Germany", "United Kingdom", "Switzerland", "Netherlands", 
@@ -40,19 +41,12 @@ final class PortfolioViewModel: ObservableObject {
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
                 
-                if tickers.isEmpty {
-                    // S'il n'y a pas de tickers, on charge les recommandations générales
-                    portfolio = try await APIService.fetchRecommendations(
-                        regions: selectedRegions,
-                        sectors: selectedSectors,
-                        allocationAmount: 10000
-                    )
-                } else {
-                    // Sinon, on charge les informations spécifiques pour ces tickers
-                    // Dans un monde idéal, on appellerait une API pour ça
-                    portfolio = Recommendation.mockPortfolio
-                    showMockAlert = true
-                }
+                portfolio = try await APIService.fetchRecommendations(
+                    regions: selectedRegions,
+                    sectors: selectedSectors,
+                    allocationAmount: capitalTarget,
+                    tickers: tickers
+                )
                 
                 // Trier les résultats par priorité d'action puis par score
                 portfolio.sort(by: Recommendation.sortByPriorityAndScore)
@@ -61,9 +55,29 @@ final class PortfolioViewModel: ObservableObject {
                 if let firstTicker = portfolio.first {
                     loadNews(for: firstTicker.symbol)
                 }
+                showMockAlert = false
             } catch {
                 print("Erreur chargement portfolio: \(error.localizedDescription)")
-                portfolio = Recommendation.mockPortfolio
+                let tickersList = userTickers
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                
+                if !tickersList.isEmpty {
+                    let amountPerTicker = capitalTarget / Double(tickersList.count)
+                    portfolio = tickersList.map { ticker in
+                        Recommendation(
+                            symbol: ticker,
+                            name: ticker,
+                            score: 0.8,
+                            allocation: amountPerTicker,
+                            sector: "N/A",
+                            region: "N/A"
+                        )
+                    }
+                } else {
+                    portfolio = Recommendation.mockPortfolio
+                }
                 showMockAlert = true
             }
         }
@@ -309,6 +323,17 @@ struct PortfolioView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Capital à allouer: \(Int(vm.capitalTarget))€")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                Slider(value: Binding(
+                    get: { vm.capitalTarget },
+                    set: { vm.capitalTarget = $0; vm.loadPortfolio() }
+                ), in: 1000...100000, step: 1000)
+                
                 Text("Saisissez vos tickers séparés par des virgules")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -317,6 +342,9 @@ struct PortfolioView: View {
                     .padding()
                     .background(Color("CardBG"))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .onChange(of: vm.userTickers) { _ in 
+                        vm.loadPortfolio()
+                    }
                 
                 Button {
                     vm.loadPortfolio()

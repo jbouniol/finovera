@@ -53,7 +53,7 @@ class APIService {
 
     // MARK: - API Methods
     
-    static func fetchRecommendations(regions: [String], sectors: [String], allocationAmount: Double) async throws -> [Recommendation] {
+    static func fetchRecommendations(regions: [String], sectors: [String], allocationAmount: Double, tickers: [String] = []) async throws -> [Recommendation] {
         if useMocks {
             // Utiliser le mock mis à jour par défaut qui inclut plus d'actions
             let defaultMock = Recommendation.updatedMock
@@ -90,6 +90,9 @@ class APIService {
         }
         if !sectors.isEmpty {
             components.queryItems?.append(.init(name: "sectors", value: sectors.joined(separator: ",")))
+        }
+        if !tickers.isEmpty {
+            components.queryItems?.append(.init(name: "tickers", value: tickers.joined(separator: ",")))
         }
 
         guard let url = components.url else { throw APIError.invalidURL }

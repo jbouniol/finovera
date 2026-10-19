@@ -97,7 +97,8 @@ final class RecommendationViewModel: ObservableObject {
             recs = try await APIService.fetchRecommendations(
                 regions: activeRegions,
                 sectors: activeSectors,
-                allocationAmount: capitalTarget
+                allocationAmount: capitalTarget,
+                tickers: userTickers
             )
             
             // Sort recommendations by score
@@ -109,6 +110,23 @@ final class RecommendationViewModel: ObservableObject {
             hasShownOfflineAlert = false
         } catch {
             print("Error loading recommendations: \(error)")
+            
+            // Fallback dynamique local
+            if !userTickers.isEmpty {
+                let amountPerTicker = capitalTarget / Double(userTickers.count)
+                recs = userTickers.map { ticker in
+                    Recommendation(
+                        symbol: ticker,
+                        name: ticker,
+                        score: 0.8,
+                        allocation: amountPerTicker,
+                        sector: "N/A",
+                        region: "N/A"
+                    )
+                }
+            } else {
+                recs = Recommendation.mock
+            }
             
             // Show offline mode alert - only if we're not already in mock/offline mode
             if !APIService.useMocks {

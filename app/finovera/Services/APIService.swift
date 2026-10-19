@@ -3,9 +3,13 @@ import Foundation
 class APIService {  
     private let baseURL = "http://127.0.0.1:8000" 
     
-    func fetchRecommendations(risk: String, capital: Double) async throws -> [Recommendation] {
-        let urlString = "\(baseURL)/recommendations?risk=\(risk)&capital=\(capital)"
-        guard let url = URL(string: urlString) else {
+    func fetchRecommendations(risk: String, capital: Double, tickers: [String] = []) async throws -> [Recommendation] {
+        var urlString = "\(baseURL)/recommendations?risk=\(risk)&capital=\(capital)"
+        if !tickers.isEmpty {
+            let tickersQuery = tickers.joined(separator: ",")
+            urlString += "&tickers=\(tickersQuery)"
+        }
+        guard let url = URL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? urlString) else {
             throw APIError.invalidURL
         }
         

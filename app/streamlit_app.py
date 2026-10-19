@@ -246,11 +246,38 @@ if page == "💡 Recommandations":
             st.warning("⚠️ Aucun actif ne correspond à ces filtres.")
             st.stop()
 
-    # Entraînement du Random Forest sur les données filtrées
+    # Entraînement du Random Forest sur les données filtrées avec évaluation temporelle out-of-sample
+    from sklearn.metrics import accuracy_score, precision_score, f1_score
+    df_f = df_f.sort_values("Date").reset_index(drop=True)
+    split_idx = int(len(df_f) * 0.8)
+    train_df = df_f.iloc[:split_idx]
+    test_df = df_f.iloc[split_idx:]
+
     model_rf = models["Random Forest"]
-    model_rf.fit(df_f[features], (df_f["variation_pct"] > 0).astype(int))
+    X_train = train_df[features]
+    y_train = (train_df["variation_pct"] > 0).astype(int)
+    X_test = test_df[features]
+    y_test = (test_df["variation_pct"] > 0).astype(int)
+
+    model_rf.fit(X_train, y_train)
+    
+    test_preds = model_rf.predict(X_test)
+    acc = accuracy_score(y_test, test_preds)
+    prec = precision_score(y_test, test_preds, zero_division=0)
+    f1 = f1_score(y_test, test_preds, zero_division=0)
+
+    st.subheader("📈 Validation Temporelle Out-of-Sample (Test: 20%)")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Accuracy", f"{acc:.2%}")
+    col2.metric("Precision", f"{prec:.2%}")
+    col3.metric("F1 Score", f"{f1:.2%}")
+
     df_f = df_f.copy()
-    df_f["score"] = model_rf.predict_proba(df_f[features])[:,1]
+    df_f["score"] = model_rf.predict_proba(df_f[features])[:, 1]
+
+    st.write("Distribution des signaux prédits :")
+    fig = px.histogram(df_f, x="score", nbins=20, title="Distribution des scores de probabilité")
+    st.plotly_chart(fig, use_container_width=True)
 
     # Sélection des meilleures recos à la date la plus récente
     last = df_f[df_f["Date"] == df_f["Date"].max()]
